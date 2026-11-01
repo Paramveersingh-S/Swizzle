@@ -2,10 +2,20 @@
   "version": 2,
   "cleanUrls": true,
   "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/v1/:match*",
+      "destination": "https://employers-willow-integrate-penetration.trycloudflare.com/v1/:match*"
+    }
+  ],
   "routes": [
     {
       "src": "/agents/quickstart.md",
       "dest": "/public/agents/quickstart.md"
+    },
+    {
+      "src": "/v1/(.*)",
+      "dest": "https://employers-willow-integrate-penetration.trycloudflare.com/v1/$1"
     },
     {
       "src": "/(.*)",
@@ -13,4 +23,3 @@
     }
   ]
 }
-
