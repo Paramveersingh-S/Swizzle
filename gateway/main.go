@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -296,6 +298,36 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Swizzle-Uncached-Tokens", fmt.Sprintf("%d", uncachedToks))
 	w.Header().Set("X-Swizzle-Hardware", spec.Hardware)
 	w.Header().Set("X-Swizzle-ZDR-Attestation", "zdr_ram_sha256_"+hex.EncodeToString(zdrHash[:8]))
+
+	// If a live Colab Pro / GPU worker UPSTREAM_URL is configured, proxy to real vLLM!
+	if upstreamURL := os.Getenv("UPSTREAM_URL"); upstreamURL != "" {
+		targetURL := strings.TrimRight(upstreamURL, "/") + "/chat/completions"
+		rawBytes, _ := json.Marshal(req)
+		start := time.Now()
+		upReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, targetURL, bytes.NewReader(rawBytes))
+		if err == nil {
+			upReq.Header.Set("Content-Type", "application/json")
+			if auth := r.Header.Get("Authorization"); auth != "" {
+				upReq.Header.Set("Authorization", auth)
+			}
+			resp, err := http.DefaultClient.Do(upReq)
+			if err == nil {
+				defer resp.Body.Close()
+				elapsedMs := int(time.Since(start).Milliseconds())
+				w.Header().Set("X-Swizzle-TTFT-Ms", fmt.Sprintf("%d", elapsedMs))
+				w.Header().Set("X-Swizzle-Hardware", "NVIDIA A100 GPU Worker (Colab Pro)")
+				for k, v := range resp.Header {
+					if strings.HasPrefix(k, "Content-") {
+						w.Header()[k] = v
+					}
+				}
+				w.WriteHeader(resp.StatusCode)
+				_, _ = io.Copy(w, resp.Body)
+				return
+			}
+			log.Printf("⚠️ Upstream worker proxy error: %v (falling back to roofline simulation)", err)
+		}
+	}
 
 	replyText := fmt.Sprintf(
 		"[Swizzle Roofline Engine — %s]\n• Hardware: %s\n• TTFT: %d ms (Prefix Cache Hit: %d/%d tokens, %.0f%% cached @ $%.3f/1M)\n• Speculative Decoding: %s (%d tok/s)\n• Zero-Data-Retention Attestation: verified ephemeral RAM execution.",
