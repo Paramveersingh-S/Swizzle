@@ -291,11 +291,17 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	spec := findModel(req.Model)
+
+	totalSaved := 0
 	var fullPrompt strings.Builder
-	for _, m := range req.Messages {
-		fullPrompt.WriteString(m.Role)
+	for i := range req.Messages {
+		optContent, rep := OptimizePrompt(req.Messages[i].Content)
+		req.Messages[i].Content = optContent
+		totalSaved += rep.TokensSaved
+
+		fullPrompt.WriteString(req.Messages[i].Role)
 		fullPrompt.WriteString(":")
-		fullPrompt.WriteString(m.Content)
+		fullPrompt.WriteString(optContent)
 		fullPrompt.WriteString("\n")
 	}
 
@@ -313,6 +319,7 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Swizzle-TTFT-Ms", fmt.Sprintf("%d", ttftMs))
 	w.Header().Set("X-Swizzle-Cache-Hit-Tokens", fmt.Sprintf("%d", cachedToks))
 	w.Header().Set("X-Swizzle-Uncached-Tokens", fmt.Sprintf("%d", uncachedToks))
+	w.Header().Set("X-Swizzle-Tokens-Saved", fmt.Sprintf("%d", totalSaved))
 	w.Header().Set("X-Swizzle-Hardware", spec.Hardware)
 	w.Header().Set("X-Swizzle-ZDR-Attestation", "zdr_ram_sha256_"+hex.EncodeToString(zdrHash[:8]))
 

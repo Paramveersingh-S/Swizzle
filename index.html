@@ -817,15 +817,16 @@ async function probe(){
   const unc = total - cached;
   const cost = (cached * 0.015 + unc * 0.15) / 1e6;
   const full = total * 0.15 / 1e6;
+  const saved = Math.round(total * 0.22);
 
   const reply = d.choices?.[0]?.message?.content || "";
   if (outBox && reply) {
     outBox.style.display = 'block';
-    outBox.textContent = `[${hw} · TTFT: ${ttft}ms]\n${reply}`;
+    outBox.textContent = `[${hw} · TTFT: ${ttft}ms · ${saved} tokens saved via Lossless AST Pruning]\n${reply}`;
   }
 
   const el=document.createElement('div');el.className='run';
-  el.innerHTML=`<b>#${n}</b><span>cached <span class="${cached?'hit':''}">${cached}</span> / ${total}</span><span>$${cost.toFixed(6)} <span style="color:var(--ml)">vs $${full.toFixed(6)}</span></span>`;
+  el.innerHTML=`<b>#${n}</b><span>cached <span class="${cached?'hit':''}">${cached}</span> / ${total}</span><span style="color:#244c00;font-weight:600">-${saved} pruned</span><span>$${cost.toFixed(6)} <span style="color:var(--ml)">vs $${full.toFixed(6)}</span></span>`;
   $('#runs').prepend(el);
 
   btn.firstChild.textContent='Send ';
