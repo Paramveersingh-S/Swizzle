@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/rand"
 	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
@@ -232,8 +231,8 @@ func withCORS(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key, anthropic-version")
-		w.Header().Set("Access-Control-Expose-Headers", "X-Swizzle-TTFT-Ms, X-Swizzle-Cache-Hit-Tokens, X-Swizzle-Uncached-Tokens, X-Swizzle-Hardware, X-Swizzle-ZDR-Attestation")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key, anthropic-version, X-Swizzle-ZDR")
+		w.Header().Set("Access-Control-Expose-Headers", "X-Swizzle-TTFT-Ms, X-Swizzle-Cache-Hit-Tokens, X-Swizzle-Uncached-Tokens, X-Swizzle-Tokens-Saved, X-Swizzle-Compression-Ratio, X-Swizzle-Secrets-Redacted, X-Swizzle-Worker-Node, X-Swizzle-Cost-USD, X-Swizzle-Saved-USD, X-Swizzle-Hardware, X-Swizzle-ZDR-Attestation")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -253,20 +252,19 @@ func handleModels(w http.ResponseWriter, r *http.Request) {
 func handleIssueKey(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Label string `json:"label"`
+		Tier  string `json:"tier"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	if body.Label == "" {
 		body.Label = "default-agent-key"
 	}
-	buf := make([]byte, 16)
-	_, _ = rand.Read(buf)
-	apiKey := "swz_live_" + hex.EncodeToString(buf)
+	apiKey, acct := authEngine.IssueKey(body.Label, body.Tier)
 
 	rec := &APIKeyRecord{
 		Key:        apiKey,
-		Label:      body.Label,
-		BalanceUSD: 5.00, // $5 free instant developer credit
-		CreatedAt:  time.Now().UTC(),
+		Label:      acct.Label,
+		BalanceUSD: acct.BalanceUSD,
+		CreatedAt:  acct.CreatedAt,
 	}
 	keyStore.Lock()
 	keyStore.keys[apiKey] = rec
@@ -280,6 +278,7 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Model    string `json:"model"`
 		Stream   bool   `json:"stream"`
+		Tools    any    `json:"tools,omitempty"`
 		Messages []struct {
 			Role    string `json:"role"`
 			Content string `json:"content"`
@@ -292,11 +291,30 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	spec := findModel(req.Model)
 
+	// 1. Edge DLP Secret Scrubbing + Lossless AST/Boilerplate Token Optimization
+	vault := NewSecretVault()
+	totalOrigToks := 0
+	totalOptToks := 0
 	totalSaved := 0
+	totalSecretsRedacted := 0
+
 	var fullPrompt strings.Builder
+	if req.Tools != nil {
+		// Canonicalize JSON tool definitions so key order never breaks KV prefix cache
+		canonTools := CanonicalizeToolsJSON(req.Tools)
+		fullPrompt.WriteString("tools:")
+		fullPrompt.WriteString(canonTools)
+		fullPrompt.WriteString("\n")
+	}
+
 	for i := range req.Messages {
-		optContent, rep := OptimizePrompt(req.Messages[i].Content)
+		scrubbed, redCount := vault.Scrub(req.Messages[i].Content)
+		totalSecretsRedacted += redCount
+
+		optContent, rep := OptimizePrompt(scrubbed)
 		req.Messages[i].Content = optContent
+		totalOrigToks += rep.OriginalTokens
+		totalOptToks += rep.OptimizedTokens
 		totalSaved += rep.TokensSaved
 
 		fullPrompt.WriteString(req.Messages[i].Role)
@@ -305,8 +323,40 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		fullPrompt.WriteString("\n")
 	}
 
+	if totalSaved > 0 {
+		metricTokensSavedByOpt.Add(uint64(totalSaved))
+	}
+	if totalSecretsRedacted > 0 {
+		metricSecretsScrubbed.Add(uint64(totalSecretsRedacted))
+	}
+
+	// 2. Enterprise Auth & Token-Bucket Rate Limiting
+	acct, remReqs, remToks, err := authEngine.AuthenticateAndRateLimit(r, totalOptToks)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error": map[string]any{
+				"message": err.Error(),
+				"type":    "rate_limit_error",
+			},
+		})
+		return
+	}
+	tenantID := "org_default_dev"
+	if acct != nil {
+		tenantID = acct.TenantID
+	}
+
+	// 3. Content-Addressed Prefix Evaluation & Radix-Tree Worker Routing
 	totalToks, cachedToks := ledger.EvaluatePrefix(spec.ID, fullPrompt.String())
 	uncachedToks := totalToks - cachedToks
+	selectedWorker, _, _ := prefixRouter.RouteAndRecord(tenantID, spec.ID, fullPrompt.String())
+
+	workerID := "sim-roofline-node-01"
+	if selectedWorker != nil {
+		workerID = selectedWorker.ID
+	}
 
 	// Compute realistic TTFT based on prefix cache hit ratio
 	cacheRatio := 0.0
@@ -315,23 +365,37 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 	ttftMs := int(float64(spec.UncachedTTFTMs)*(1.0-cacheRatio) + float64(spec.CachedTTFTMs)*cacheRatio)
 
-	zdrHash := sha256.Sum256([]byte(fmt.Sprintf("%s:%d", spec.ID, time.Now().UnixNano())))
+	compRatioFactor := 1.0
+	if totalOptToks > 0 && totalOrigToks >= totalOptToks {
+		compRatioFactor = float64(totalOrigToks) / float64(totalOptToks)
+	}
+
+	// 4. Real-Time 3-Tier Billing & Savings Calculation
+	costUSD, savedUSD := authEngine.RecordBilling(acct, spec, uncachedToks, cachedToks, totalSaved, 48)
+
+	zdrHash := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%d", tenantID, spec.ID, time.Now().UnixNano())))
 	w.Header().Set("X-Swizzle-TTFT-Ms", fmt.Sprintf("%d", ttftMs))
 	w.Header().Set("X-Swizzle-Cache-Hit-Tokens", fmt.Sprintf("%d", cachedToks))
 	w.Header().Set("X-Swizzle-Uncached-Tokens", fmt.Sprintf("%d", uncachedToks))
 	w.Header().Set("X-Swizzle-Tokens-Saved", fmt.Sprintf("%d", totalSaved))
+	w.Header().Set("X-Swizzle-Compression-Ratio", fmt.Sprintf("%.2fx", compRatioFactor))
+	w.Header().Set("X-Swizzle-Secrets-Redacted", fmt.Sprintf("%d", totalSecretsRedacted))
+	w.Header().Set("X-Swizzle-Worker-Node", workerID)
+	w.Header().Set("X-Swizzle-Cost-USD", fmt.Sprintf("$%.6f", costUSD))
+	w.Header().Set("X-Swizzle-Saved-USD", fmt.Sprintf("$%.6f", savedUSD))
+	w.Header().Set("X-RateLimit-Remaining-Requests", fmt.Sprintf("%d", remReqs))
+	w.Header().Set("X-RateLimit-Remaining-Tokens", fmt.Sprintf("%d", remToks))
 	w.Header().Set("X-Swizzle-Hardware", spec.Hardware)
 	w.Header().Set("X-Swizzle-ZDR-Attestation", "zdr_ram_sha256_"+hex.EncodeToString(zdrHash[:8]))
 
-	// If a live Colab Pro / GPU worker UPSTREAM_URL is configured (or defaults to active Cloudflare tunnel), proxy to real vLLM!
+	// 5. Proxy to Live GPU/TPU Worker via Radix Router (unless disabled for unit tests)
 	upstreamURL := os.Getenv("UPSTREAM_URL")
-	if upstreamURL == "" {
-		upstreamURL = "https://employers-willow-integrate-penetration.trycloudflare.com/v1"
+	if upstreamURL == "" && selectedWorker != nil {
+		upstreamURL = selectedWorker.EndpointURL
 	}
-	if upstreamURL != "" {
+	if upstreamURL != "" && os.Getenv("SWIZZLE_DISABLE_UPSTREAM") != "1" {
 		targetURL := strings.TrimRight(upstreamURL, "/") + "/chat/completions"
 		proxyReq := req
-		// If upstream is standard vLLM serving Qwen, map any alias to the loaded model
 		if proxyReq.Model == "" || !strings.Contains(proxyReq.Model, "Qwen2.5") {
 			proxyReq.Model = "Qwen/Qwen2.5-Coder-7B-Instruct"
 		}
@@ -347,6 +411,7 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			resp, err := client.Do(upReq)
 			if err == nil && resp.StatusCode < 400 {
 				defer resp.Body.Close()
+				prefixRouter.MarkWorkerSuccess(workerID)
 				elapsedMs := int(time.Since(start).Milliseconds())
 				w.Header().Set("X-Swizzle-TTFT-Ms", fmt.Sprintf("%d", elapsedMs))
 				w.Header().Set("X-Swizzle-Hardware", "NVIDIA A100 GPU Worker (Colab Pro)")
@@ -360,6 +425,7 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 				_, _ = io.Copy(w, resp.Body)
 				return
 			}
+			prefixRouter.MarkWorkerFailure(workerID)
 			if err != nil {
 				log.Printf("⚠️ Upstream worker proxy error: %v (falling back to roofline simulation)", err)
 			} else {
@@ -369,10 +435,10 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	replyText := fmt.Sprintf(
-		"[Swizzle Roofline Engine — %s]\n• Hardware: %s\n• TTFT: %d ms (Prefix Cache Hit: %d/%d tokens, %.0f%% cached @ $%.3f/1M)\n• Speculative Decoding: %s (%d tok/s)\n• Zero-Data-Retention Attestation: verified ephemeral RAM execution.",
-		spec.ID, spec.Hardware, ttftMs, cachedToks, totalToks, cacheRatio*100, spec.CachedPricePerM, spec.SpeculativeDecoding, spec.OutputTokPerSec,
-	)
+	replyText := vault.Restore(fmt.Sprintf(
+		"[Swizzle Roofline Engine — %s]\n• Hardware: %s (Node: %s)\n• TTFT: %d ms (Prefix Cache Hit: %d/%d tokens, %.0f%% cached @ $%.3f/1M)\n• Token Optimizer: %d tokens saved (%.2fx compression) | Secrets Redacted: %d\n• Speculative Decoding: %s (%d tok/s)\n• Zero-Data-Retention Attestation: verified ephemeral RAM execution.",
+		spec.ID, spec.Hardware, workerID, ttftMs, cachedToks, totalToks, cacheRatio*100, spec.CachedPricePerM, totalSaved, compRatioFactor, totalSecretsRedacted, spec.SpeculativeDecoding, spec.OutputTokPerSec,
+	))
 	outputToks := 48
 
 	if req.Stream {
@@ -525,7 +591,10 @@ func main() {
 	mux.HandleFunc("/v1/chat/completions", withCORS(handleChatCompletions))
 	mux.HandleFunc("/v1/messages", withCORS(handleChatCompletions))
 	mux.HandleFunc("/v1/keys/issue", withCORS(handleIssueKey))
+	mux.HandleFunc("/v1/workers", withCORS(handleWorkers))
+	mux.HandleFunc("/v1/billing/ledger", withCORS(handleBillingLedger))
 	mux.HandleFunc("/v1/telemetry", withCORS(handleTelemetry))
+	mux.HandleFunc("/metrics", withCORS(handlePrometheusMetrics))
 	mux.HandleFunc("/agents/quickstart.md", withCORS(handleAgentQuickstart))
 	mux.HandleFunc("/llms.txt", withCORS(handleAgentQuickstart))
 

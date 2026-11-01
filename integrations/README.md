@@ -99,3 +99,4 @@ aider --model openai/Qwen/Qwen2.5-Coder-7B-Instruct --cache-prompts
 When calling Swizzle through the Gateway, responses include real-time compression diagnostics:
 * `X-Swizzle-Tokens-Saved`: Prompt tokens stripped via AST license deduplication and whitespace normalization.
 * `X-Swizzle-Compression-Ratio`: Token savings factor (e.g. `1.43x` = 43% token reduction).
+

@@ -211,16 +211,25 @@ Swizzle/
 ├── index.html                 # Production Web Platform (Vercel Root)
 ├── vercel.json                # Edge rewrite configuration to worker tunnel
 ├── package.json               # Static build and packaging pipeline
-├── colab_worker.ipynb         # Colab Pro A100 GPU worker (Named Tunnel & TryCloudflare)
-├── public/
-│   ├── swizzle_avatar.png     # Official X/GitHub high-res avatar (800x800)
-│   ├── swizzle_twitter_banner.png # Official 1500x500 X header banner
-│   └── agents/quickstart.md   # Agent specification for Cursor & Claude Code
+├── Dockerfile                 # Multi-stage <15MB hardened Go container build
+├── colab_worker.ipynb         # Colab Pro A100 GPU worker (Prefix Cache + PLD + Named Tunnel)
+├── deploy/
+│   ├── docker-compose.enterprise.yml # Full stack: Swizzle Gateway + Valkey + Prometheus
+│   └── prometheus.yml         # 5s hardware-roofline & KV-cache metric scrape config
+├── kernels/
+│   ├── cuda/swizzle_xor_attn.cu      # CUDA C++ XOR shared-memory bank-conflict-free kernel
+│   └── tpu/pallas_vmem_megakernel.py # Google Cloud TPU v4/v5e JAX/Pallas VMEM megakernel
 ├── gateway/
 │   ├── main.go                # Go 1.22 edge control plane (OpenAI & Anthropic proxy)
-│   ├── optimizer.go           # Lossless Token Optimizer (Whitespace & AST deduplication)
-│   ├── optimizer_test.go      # Optimizer benchmark and fidelity tests
+│   ├── router.go              # Content-addressed Radix-Tree Longest-Prefix Match router
+│   ├── auth.go                # HMAC-SHA256 multi-tenant auth, rate limiter & 3-tier billing
+│   ├── optimizer.go           # Lossless Token Optimizer (AST, SVG, lockfile & tool canonicalizer)
+│   ├── dlp.go                 # Zero-Data-Retention (ZDR) edge secret & credential scrubber
+│   ├── metrics.go             # Prometheus /metrics telemetry exporter
+│   ├── main_test.go           # Radix LPM, prefix cache, and DLP unit tests
 │   └── static/index.html      # Embedded gateway fallback
+├── scripts/
+│   └── swizzle_bench.py       # End-to-end enterprise benchmark & compliance CLI
 ├── tunnel/
 │   ├── config.yml             # Cloudflare Named Tunnel config (api.withswizzle.com)
 │   └── named_tunnel_setup.md  # Step-by-step permanent domain binding guide
