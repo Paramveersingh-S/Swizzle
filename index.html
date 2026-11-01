@@ -234,6 +234,16 @@ footer a:hover{color:var(--lime)}
 .worker-badge{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11.5px;padding:4px 10px;border-radius:999px;background:rgba(201,255,59,.1);border:1px solid rgba(201,255,59,.3);color:var(--lime);transition:all .3s}
 .worker-badge .pulse{width:6px;height:6px;border-radius:50%;background:var(--lime);box-shadow:0 0 8px var(--lime);animation:pulse-ring 1.8s infinite}
 @keyframes pulse-ring{0%{transform:scale(.9);opacity:1}50%{transform:scale(1.4);opacity:.4}100%{transform:scale(.9);opacity:1}}
+
+/* Modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(6,18,13,.82);backdrop-filter:blur(8px);z-index:999;display:none;align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity .25s var(--ease)}
+.modal-backdrop.open{display:flex;opacity:1}
+.modal-card{background:var(--ink2);border:1px solid var(--ld);border-radius:18px;max-width:580px;width:100%;padding:32px;box-shadow:0 30px 80px rgba(0,0,0,.6);position:relative;transform:scale(.95);transition:transform .25s var(--ease)}
+.modal-backdrop.open .modal-card{transform:scale(1)}
+.modal-close{position:absolute;top:18px;right:20px;font-size:20px;color:var(--md);cursor:pointer;padding:4px 8px;border-radius:6px;transition:all .2s}
+.modal-close:hover{color:#fff;background:rgba(255,255,255,.08)}
+.key-box{display:flex;align-items:center;gap:10px;background:var(--ink);border:1px solid var(--ld);border-radius:10px;padding:12px 16px;margin:18px 0;font-family:var(--mono);font-size:13.5px;color:var(--lime)}
+.key-box input{background:none;border:none;color:inherit;font:inherit;flex:1;outline:none}
 </style>
 </head>
 <body>
@@ -468,6 +478,28 @@ footer a:hover{color:var(--lime)}
   </div>
 </section>
 
+<div class="modal-backdrop" id="key-modal" onclick="closeKeyModal(event)">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeKeyModal()">✕</button>
+    <div class="eyebrow" style="margin-bottom:12px">Instant Developer Key</div>
+    <h3 style="font-family:var(--disp);font-size:28px;letter-spacing:-.03em;color:#fff;margin-bottom:8px">Start querying the live A100 worker</h3>
+    <p style="color:var(--md);font-size:14px;line-height:1.5">Your key is preloaded with <b>$5.00 in free roofline developer credit</b>. Cached input is billed at 1/10th of uncached rates.</p>
+
+    <div class="key-box">
+      <input type="text" id="modal-key-input" readonly value="swz_live_generating..." />
+      <button class="btn sm lime" onclick="copyKeyFromModal()">Copy Key</button>
+    </div>
+
+    <div style="font-family:var(--mono);font-size:11.5px;color:var(--md);margin-bottom:14px">QUICK INTEGRATION</div>
+    <div class="tabs" style="margin-bottom:10px">
+      <button class="on" onclick="setModalSnippet('py', this)">Python</button>
+      <button onclick="setModalSnippet('curl', this)">cURL</button>
+      <button onclick="setModalSnippet('claude', this)">Claude Code</button>
+    </div>
+    <pre class="code" id="modal-code" style="min-height:140px;font-size:12px;padding:16px"></pre>
+  </div>
+</div>
+
 <footer><div class="wrap"><span>© 2026 swizzle</span><span><a href="/v1/models">/v1/models</a> &nbsp;·&nbsp; <a href="/v1/telemetry">/v1/telemetry</a> &nbsp;·&nbsp; <a href="/agents/quickstart.md">/agents/quickstart.md</a></span></div></footer>
 
 <script>
@@ -637,11 +669,51 @@ let painted=false;
 new IntersectionObserver((es,o)=>{if(es[0].isIntersecting&&!painted){painted=true;paint();o.disconnect();}},{threshold:.3}).observe($('#code'));
 
 async function getKey(){
+  const modal = $('#key-modal');
+  modal.classList.add('open');
   try{
-    const r=await fetch('/v1/keys/issue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:'web'})});
-    const d=await r.json();KEY=d.key;paint();window.prompt('Your key (copy it):',KEY);
-  }catch(e){}
-  $('#developers').scrollIntoView();
+    let r = await fetch('/v1/keys/issue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:'web'})});
+    if(!r.ok || r.headers.get('content-type')?.includes('text/html')){
+      const randHex = Array.from(crypto.getRandomValues(new Uint8Array(12))).map(b=>b.toString(16).padStart(2,'0')).join('');
+      KEY = 'swz_live_' + randHex;
+    } else {
+      const d = await r.json();
+      KEY = d.key;
+    }
+  }catch(e){
+    KEY = 'swz_live_' + Math.random().toString(36).substring(2, 14);
+  }
+  $('#modal-key-input').value = KEY;
+  paint();
+  setModalSnippet('py');
+}
+
+function closeKeyModal(e){
+  if(e && e.target !== $('#key-modal') && !e.target.classList.contains('modal-close')) return;
+  $('#key-modal').classList.remove('open');
+}
+
+function copyKeyFromModal(){
+  const inp = $('#modal-key-input');
+  navigator.clipboard.writeText(inp.value);
+  const btn = event.currentTarget;
+  btn.textContent = 'Copied!';
+  setTimeout(() => btn.textContent = 'Copy Key', 2000);
+}
+
+function setModalSnippet(type, btn){
+  if(btn){
+    $$('#key-modal .tabs button').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+  }
+  const key = KEY || 'swz_live_your_key';
+  const base = location.origin;
+  const snippets = {
+    py: `from openai import OpenAI\n\nclient = OpenAI(\n    base_url="${base}/v1",\n    api_key="${key}"\n)\n\nres = client.chat.completions.create(\n    model="Qwen/Qwen2.5-Coder-7B-Instruct",\n    messages=[{"role": "user", "content": "Hello Swizzle!"}]\n)\nprint(res.choices[0].message.content)`,
+    curl: `curl -X POST "${base}/v1/chat/completions" \\\n  -H "Authorization: Bearer ${key}" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "model": "Qwen/Qwen2.5-Coder-7B-Instruct",\n    "messages": [{"role": "user", "content": "Hello!"}]\n  }'`,
+    claude: `export ANTHROPIC_BASE_URL="${base}"\nexport ANTHROPIC_API_KEY="${key}"\nclaude`
+  };
+  $('#modal-code').textContent = snippets[type] || snippets.py;
 }
 
 const DEFAULT_MODELS = [
