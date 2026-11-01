@@ -1,0 +1,36 @@
+{
+  "OPENAI_API_BASE_URLS": "https://swizzle-ten.vercel.app/v1;https://api.withswizzle.com/v1",
+  "OPENAI_API_KEYS": "sk-swizzle-dev-bypass-key;sk-swizzle-dev-bypass-key",
+  "models": [
+    {
+      "id": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "name": "Swizzle Coder 7B (A100 Live)",
+      "description": "Hardware-roofline inference engine with sub-40ms cached TTFT and AST token optimization",
+      "context_length": 32768,
+      "parameters": {
+        "temperature": 0.2,
+        "max_tokens": 8192
+      },
+      "capabilities": {
+        "vision": false,
+        "citation": false,
+        "prompt_caching": true,
+        "function_calling": true
+      }
+    },
+    {
+      "id": "swizzle/qwen3.6-35b-a3b-fp8",
+      "name": "Swizzle 35B A3B (Sub-40ms TTFT)",
+      "description": "Asymmetric attention architecture with zero shared-memory bank conflicts",
+      "context_length": 262144,
+      "parameters": {
+        "temperature": 0.2,
+        "max_tokens": 16384
+      },
+      "capabilities": {
+        "prompt_caching": true,
+        "function_calling": true
+      }
+    }
+  ]
+}

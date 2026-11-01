@@ -2,10 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "trailingSlash": false,
+  "outputDirectory": "dist",
   "rewrites": [
     {
       "source": "/agents/quickstart.md",
-      "destination": "/public/agents/quickstart.md"
+      "destination": "/agents/quickstart.md"
     },
     {
       "source": "/v1/:path*",

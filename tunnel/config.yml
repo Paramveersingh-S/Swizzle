@@ -1,0 +1,37 @@
+# ==============================================================================
+# Cloudflare Named Tunnel Configuration for Swizzle High-Performance Gateway
+# Domain: api.withswizzle.com
+# ==============================================================================
+#
+# Production zero-trust tunnel routing incoming public traffic directly to
+# the Swizzle Gateway / vLLM inference engine on local port 8000 (or 8080).
+#
+# Usage:
+#   cloudflared tunnel --config tunnel/config.yml run swizzle-worker-tunnel
+# Or via token:
+#   cloudflared tunnel run --token <TUNNEL_TOKEN>
+# ==============================================================================
+
+tunnel: swizzle-worker-tunnel
+credentials-file: /root/.cloudflared/swizzle-worker-tunnel.json
+
+ingress:
+  # 1. Primary OpenAI-compatible API Endpoint (Sub-40ms cached TTFT)
+  - hostname: api.withswizzle.com
+    service: http://127.0.0.1:8000
+    originRequest:
+      connectTimeout: 30s
+      noTLSVerify: true
+      keepAliveTimeout: 300s
+      keepAliveConnections: 100
+      tcpKeepAlive: 30s
+
+  # 2. Local Swizzle Token-Optimizing Edge Gateway (Optional proxy route)
+  - hostname: gateway.withswizzle.com
+    service: http://127.0.0.1:8080
+    originRequest:
+      connectTimeout: 15s
+      noTLSVerify: true
+
+  # 3. Default fallback catch-all (404 Not Found)
+  - service: http_status:404

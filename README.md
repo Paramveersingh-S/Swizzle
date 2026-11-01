@@ -210,15 +210,27 @@ You can turn any Google Colab Pro session into an upstream GPU worker for Swizzl
 Swizzle/
 ├── index.html                 # Production Web Platform (Vercel Root)
 ├── vercel.json                # Edge rewrite configuration to worker tunnel
-├── colab_worker.ipynb         # Colab Pro A100 GPU worker with anti-sleep watchdog
+├── package.json               # Static build and packaging pipeline
+├── colab_worker.ipynb         # Colab Pro A100 GPU worker (Named Tunnel & TryCloudflare)
 ├── public/
 │   ├── swizzle_avatar.png     # Official X/GitHub high-res avatar (800x800)
 │   ├── swizzle_twitter_banner.png # Official 1500x500 X header banner
 │   └── agents/quickstart.md   # Agent specification for Cursor & Claude Code
 ├── gateway/
 │   ├── main.go                # Go 1.22 edge control plane (OpenAI & Anthropic proxy)
-│   ├── main_test.go           # Gateway telemetry unit tests
+│   ├── optimizer.go           # Lossless Token Optimizer (Whitespace & AST deduplication)
+│   ├── optimizer_test.go      # Optimizer benchmark and fidelity tests
 │   └── static/index.html      # Embedded gateway fallback
+├── tunnel/
+│   ├── config.yml             # Cloudflare Named Tunnel config (api.withswizzle.com)
+│   └── named_tunnel_setup.md  # Step-by-step permanent domain binding guide
+├── integrations/              # Upstream Agent & Proxy Ecosystem
+│   ├── README.md              # Complete integration guide (LiteLLM, Cursor, OpenWebUI)
+│   ├── litellm_config.yaml    # Production LiteLLM Proxy configuration
+│   ├── litellm_proxy.py       # Python verification & TTFT benchmark client
+│   ├── openwebui_config.json  # OpenWebUI model provider configuration
+│   ├── continue_config.json   # Continue.dev VS Code / JetBrains extension config
+│   └── claude_code_config.json# Claude Code, Cline, and Aider setup
 └── web/                       # Static Vercel deployment bundle
     ├── package.json           # Safe static dist builder
     └── vercel.json            # Vercel project configuration

@@ -1,0 +1,33 @@
+{
+  "client_integrations": {
+    "claude_code": {
+      "description": "Run Anthropic Claude Code CLI backed by Swizzle inference",
+      "env": {
+        "ANTHROPIC_BASE_URL": "https://swizzle-ten.vercel.app/v1",
+        "ANTHROPIC_API_KEY": "sk-swizzle-dev-bypass-key"
+      },
+      "command": "claude --model Qwen/Qwen2.5-Coder-7B-Instruct"
+    },
+    "aider": {
+      "description": "Autonomous pair programming with Aider CLI using Swizzle",
+      "env": {
+        "OPENAI_API_BASE": "https://swizzle-ten.vercel.app/v1",
+        "OPENAI_API_KEY": "sk-swizzle-dev-bypass-key"
+      },
+      "command": "aider --model openai/Qwen/Qwen2.5-Coder-7B-Instruct --cache-prompts"
+    },
+    "cursor": {
+      "description": "Cursor IDE custom OpenAI API settings",
+      "openai_base_url": "https://swizzle-ten.vercel.app/v1",
+      "openai_api_key": "sk-swizzle-dev-bypass-key",
+      "model_override": "Qwen/Qwen2.5-Coder-7B-Instruct"
+    },
+    "cline": {
+      "description": "Cline / Roo Code VS Code extension",
+      "api_provider": "OpenAI Compatible",
+      "base_url": "https://swizzle-ten.vercel.app/v1",
+      "api_key": "sk-swizzle-dev-bypass-key",
+      "model_id": "Qwen/Qwen2.5-Coder-7B-Instruct"
+    }
+  }
+}

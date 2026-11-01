@@ -1,4 +1,31 @@
+# ==============================================================================
+# LiteLLM Proxy Configuration for Swizzle Engine
+# Compatible with LiteLLM v1.40.0+
+# ==============================================================================
+#
+# Run LiteLLM Proxy with:
+#   litellm --config integrations/litellm_config.yaml --port 4000
+#
+# Swizzle provides sub-40ms cached TTFT and automatic prompt token compression.
+# ==============================================================================
+
 model_list:
+  # 1. Live A100 Worker Model (Active Now)
+  - model_name: swizzle/qwen-2.5-coder-7b
+    litellm_params:
+      model: openai/Qwen/Qwen2.5-Coder-7B-Instruct
+      api_base: https://swizzle-ten.vercel.app/v1
+      api_key: os.environ/SWIZZLE_API_KEY
+    model_info:
+      input_cost_per_token: 0.00000008
+      cache_read_input_token_cost: 0.000000008  # 90% discount on cached prefixes
+      output_cost_per_token: 0.00000030
+      max_input_tokens: 32768
+      max_output_tokens: 8192
+      supports_function_calling: true
+      supports_prompt_caching: true
+
+  # 2. Production Flagship Swizzle Model (api.withswizzle.com)
   - model_name: swizzle/qwen3.6-35b-a3b-fp8
     litellm_params:
       model: openai/swizzle/qwen3.6-35b-a3b-fp8
@@ -13,6 +40,7 @@ model_list:
       supports_function_calling: true
       supports_prompt_caching: true
 
+  # 3. Frontier Agent Model (1M Context)
   - model_name: swizzle/deepseek-v4.1-flash-1017
     litellm_params:
       model: openai/swizzle/deepseek-v4.1-flash-1017
@@ -27,17 +55,10 @@ model_list:
       supports_function_calling: true
       supports_prompt_caching: true
 
-  - model_name: swizzle/deepseek-v4.1-flash-abliterated
-    litellm_params:
-      model: openai/swizzle/deepseek-v4.1-flash-abliterated
-      api_base: https://api.withswizzle.com/v1
-      api_key: os.environ/SWIZZLE_API_KEY
-    model_info:
-      input_cost_per_token: 0.00000025
-      cache_read_input_token_cost: 0.000000025
-      output_cost_per_token: 0.00000100
-      max_input_tokens: 1000000
-      max_output_tokens: 65536
-      supports_function_calling: true
-      supports_prompt_caching: true
-
+general_settings:
+  master_key: sk-swizzle-litellm-proxy-master
+  pass_through_headers:
+    - X-Swizzle-Tokens-Saved
+    - X-Swizzle-Compression-Ratio
+    - X-Swizzle-Cache-Hit
+    - X-Swizzle-Engine-TTFT

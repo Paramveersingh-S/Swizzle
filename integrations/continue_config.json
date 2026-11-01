@@ -1,0 +1,37 @@
+{
+  "$schema": "https://raw.githubusercontent.com/continuedev/continue/main/extensions/vscode/config_schema.json",
+  "models": [
+    {
+      "title": "Swizzle Coder 7B (A100 Live)",
+      "provider": "openai",
+      "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "apiBase": "https://swizzle-ten.vercel.app/v1",
+      "apiKey": "sk-swizzle-dev-bypass-key",
+      "contextLength": 32768,
+      "roles": ["chat", "edit"]
+    },
+    {
+      "title": "Swizzle 35B A3B (api.withswizzle.com)",
+      "provider": "openai",
+      "model": "swizzle/qwen3.6-35b-a3b-fp8",
+      "apiBase": "https://api.withswizzle.com/v1",
+      "apiKey": "sk-swizzle-dev-bypass-key",
+      "contextLength": 262144,
+      "roles": ["chat", "edit"]
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "Swizzle Tab Autocomplete",
+    "provider": "openai",
+    "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+    "apiBase": "https://swizzle-ten.vercel.app/v1",
+    "apiKey": "sk-swizzle-dev-bypass-key"
+  },
+  "customCommands": [
+    {
+      "name": "swizzle-opt",
+      "prompt": "Optimize this code to maximize hardware-roofline memory bandwidth and eliminate shared-memory bank conflicts:",
+      "description": "Swizzle hardware optimization pass"
+    }
+  ]
+}
