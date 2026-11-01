@@ -615,12 +615,24 @@ async function getKey(){
   $('#developers').scrollIntoView();
 }
 
-fetch('/v1/models').then(r=>r.json()).then(d=>{
-  $('#catalog').innerHTML=d.data.map(m=>`
+const DEFAULT_MODELS = [
+  { id: 'swizzle/qwen3.6-35b-a3b-fp8', architecture: 'Hybrid Gated-DeltaNet + MoE (35B Total / 3B Active)', hardware: '1x AMD MI300X (192GB HBM3, 5.3 TB/s, TP=1)', context_window: 262144, input_price_per_m: 0.20, cached_price_per_m: 0.02, output_price_per_m: 0.80 },
+  { id: 'swizzle/gemma-4-31b-it', architecture: 'Dense 31B BF16/INT4 Fused Barrier-Free Megakernel', hardware: 'Google Cloud TPU v5e-8 Persistent Megakernel', context_window: 131072, input_price_per_m: 0.25, cached_price_per_m: 0.025, output_price_per_m: 0.75 },
+  { id: 'swizzle/deepseek-v4.1-flash-1017', architecture: 'MLA + Fine-Grained MoE (1M Token Context)', hardware: '8x AMD MI300X (EP=8, 1.5TB HBM3 Pool)', context_window: 1000000, input_price_per_m: 0.25, cached_price_per_m: 0.025, output_price_per_m: 1.00 },
+  { id: 'swizzle/deepseek-v4.1-flash-abliterated', architecture: 'Orthogonal Refusal-Abliterated 1M Context AppSec Engine', hardware: '8x AMD MI300X (ZDR Ephemeral RAM Enclave)', context_window: 1000000, input_price_per_m: 0.25, cached_price_per_m: 0.025, output_price_per_m: 1.00 }
+];
+
+function renderCatalog(models) {
+  $('#catalog').innerHTML = models.map(m => `
     <tr><td class="id">${m.id}<small>${m.architecture}</small></td><td>${m.hardware}</td>
-    <td>${m.context_window>=1e6?'1M':Math.round(m.context_window/1024)+'K'}</td>
+    <td>${m.context_window >= 1e6 ? '1M' : Math.round(m.context_window / 1024) + 'K'}</td>
     <td>$${m.input_price_per_m.toFixed(2)}</td><td>$${m.cached_price_per_m.toFixed(3)}</td><td>$${m.output_price_per_m.toFixed(2)}</td></tr>`).join('');
-}).catch(()=>{});
+}
+renderCatalog(DEFAULT_MODELS);
+
+fetch('/v1/models').then(r => r.json()).then(d => {
+  if (d && d.data && d.data.length) renderCatalog(d.data);
+}).catch(() => {});
 
 const ctx='src/attention/tile.cu: '.repeat(60);let n=0;
 async function probe(){
