@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/agents/quickstart.md",
+      "destination": "/public/agents/quickstart.md"
+    },
+    {
+      "source": "/v1/:path*",
+      "destination": "https://employers-willow-integrate-penetration.trycloudflare.com/v1/:path*"
+    }
+  ]
+}

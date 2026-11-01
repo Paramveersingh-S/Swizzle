@@ -1,25 +1,15 @@
 {
-  "version": 2,
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
     {
-      "source": "/v1/:match*",
-      "destination": "https://employers-willow-integrate-penetration.trycloudflare.com/v1/:match*"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/agents/quickstart.md",
-      "dest": "/public/agents/quickstart.md"
+      "source": "/agents/quickstart.md",
+      "destination": "/public/agents/quickstart.md"
     },
     {
-      "src": "/v1/(.*)",
-      "dest": "https://employers-willow-integrate-penetration.trycloudflare.com/v1/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/v1/:path*",
+      "destination": "https://employers-willow-integrate-penetration.trycloudflare.com/v1/:path*"
     }
   ]
 }
