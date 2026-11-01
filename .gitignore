@@ -1,0 +1,29 @@
+# Binaries and executables
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+build/
+swizzle-gateway
+
+# Node / Web dependencies
+node_modules/
+.npm/
+npm-debug.log*
+
+# Environment and sensitive files
+.env
+.env.local
+*.pem
+*.key
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo

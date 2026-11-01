@@ -1,0 +1,75 @@
+{
+  "id": "swizzle",
+  "name": "Swizzle",
+  "api": "https://api.withswizzle.com/v1",
+  "env": ["SWIZZLE_API_KEY"],
+  "npm": "@ai-sdk/openai-compatible",
+  "doc": "https://withswizzle.com/agents/quickstart.md",
+  "models": {
+    "swizzle/qwen3.6-35b-a3b-fp8": {
+      "id": "swizzle/qwen3.6-35b-a3b-fp8",
+      "name": "Qwen 3.6 35B-A3B FP8 (Swizzle MI300X TP=1)",
+      "attachment": false,
+      "reasoning": true,
+      "tool_call": true,
+      "cost": {
+        "input": 0.20,
+        "output": 0.80,
+        "cache_read": 0.02
+      },
+      "limit": {
+        "context": 262144,
+        "output": 32768
+      }
+    },
+    "swizzle/gemma-4-31b-it": {
+      "id": "swizzle/gemma-4-31b-it",
+      "name": "Gemma 4 31B IT (Swizzle TPU v5e Megakernel)",
+      "attachment": true,
+      "reasoning": true,
+      "tool_call": true,
+      "cost": {
+        "input": 0.25,
+        "output": 0.75,
+        "cache_read": 0.025
+      },
+      "limit": {
+        "context": 131072,
+        "output": 16384
+      }
+    },
+    "swizzle/deepseek-v4.1-flash-1017": {
+      "id": "swizzle/deepseek-v4.1-flash-1017",
+      "name": "DeepSeek V4.1 Flash 1017 (1M Context)",
+      "attachment": false,
+      "reasoning": true,
+      "tool_call": true,
+      "cost": {
+        "input": 0.25,
+        "output": 1.00,
+        "cache_read": 0.025
+      },
+      "limit": {
+        "context": 1000000,
+        "output": 65536
+      }
+    },
+    "swizzle/deepseek-v4.1-flash-abliterated": {
+      "id": "swizzle/deepseek-v4.1-flash-abliterated",
+      "name": "DeepSeek V4.1 Flash Abliterated (/cyber ZDR)",
+      "attachment": false,
+      "reasoning": true,
+      "tool_call": true,
+      "cost": {
+        "input": 0.25,
+        "output": 1.00,
+        "cache_read": 0.025
+      },
+      "limit": {
+        "context": 1000000,
+        "output": 65536
+      }
+    }
+  }
+}
+

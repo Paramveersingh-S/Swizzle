@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>swizzle — inference that remembers what it already read</title>
+<meta name="description" content="OpenAI- and Anthropic-compatible inference with a prefix-cache ledger built in. Cached input is billed at a tenth of the price." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2306120d'/%3E%3Cg fill='%23c9ff3b'%3E%3Crect x='6' y='6' width='4' height='4'/%3E%3Crect x='22' y='6' width='4' height='4'/%3E%3Crect x='14' y='14' width='4' height='4'/%3E%3Crect x='6' y='22' width='4' height='4'/%3E%3C/g%3E%3Cg fill='%23c9ff3b' opacity='.25'%3E%3Crect x='14' y='6' width='4' height='4'/%3E%3Crect x='6' y='14' width='4' height='4'/%3E%3Crect x='22' y='14' width='4' height='4'/%3E%3Crect x='14' y='22' width='4' height='4'/%3E%3Crect x='22' y='22' width='4' height='4'/%3E%3C/g%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --ink:#06120d; --ink2:#0b1d15; --ink3:#112a1e;
+  --bone:#eeede4; --paper:#f6f5ee;
+  --lime:#c9ff3b; --lime-d:#7fae00; --hot:#ff5b2e;
+  --td:#e6eadf; --md:#8fa398; --ld:rgba(230,234,223,.14);
+  --tl:#0a1a13; --ml:#566359; --ll:rgba(6,18,13,.16);
+  --disp:'Bricolage Grotesque',system-ui,sans-serif;
+  --body:'Instrument Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --ease:cubic-bezier(.2,.7,.1,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--ink);color:var(--td);font-family:var(--body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+.mono{font-family:var(--mono)}
+.wrap{max-width:1240px;margin:0 auto;padding:0 32px}
+::selection{background:var(--lime);color:var(--ink)}
+
+/* scroll progress */
+#prog{position:fixed;top:0;left:0;height:2px;width:0;background:var(--lime);z-index:60;box-shadow:0 0 12px var(--lime)}
+
+/* reveal */
+.rv{opacity:0;transform:translateY(26px);transition:opacity .8s var(--ease),transform .8s var(--ease);transition-delay:var(--d,0s)}
+.rv.in{opacity:1;transform:none}
+
+/* logo */
+.logo{display:flex;align-items:center;gap:11px;font-family:var(--disp);font-weight:700;font-size:23px;letter-spacing:-.04em;color:var(--td)}
+.logo b{color:var(--lime);font-weight:700}
+.mark{display:grid;grid-template-columns:repeat(4,1fr);gap:2.5px;width:26px;height:26px}
+.mark i{background:rgba(201,255,59,.2);border-radius:1px;transition:background .5s var(--ease),transform .5s var(--ease),box-shadow .5s}
+.mark i.on{background:var(--lime);box-shadow:0 0 8px rgba(201,255,59,.7);transform:scale(1.08)}
+.logo:hover .mark i{transition-duration:.25s}
+.mark.big{width:120px;height:120px;gap:9px}
+.mark.big i{border-radius:3px}
+
+/* nav */
+nav.top{position:sticky;top:0;z-index:50;background:rgba(6,18,13,.96);backdrop-filter:blur(14px);border-bottom:1px solid transparent;transition:border-color .3s;animation:drop .9s var(--ease) both}
+nav.top.s{border-bottom-color:var(--ld)}
+@keyframes drop{from{transform:translateY(-100%);opacity:0}to{transform:none;opacity:1}}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:68px}
+.links{display:flex;gap:6px;font-size:14px}
+.links a{position:relative;padding:8px 14px;border-radius:8px;color:#c9d3c8;transition:color .2s}
+.links a::after{content:'';position:absolute;left:14px;right:14px;bottom:4px;height:1px;background:var(--lime);transform:scaleX(0);transform-origin:left;transition:transform .35s var(--ease)}
+.links a:hover{color:#fff}.links a:hover::after{transform:scaleX(1)}
+.right{display:flex;align-items:center;gap:20px;font-family:var(--mono);font-size:12.5px;color:#aab8ac}
+.right a:hover{color:#fff}
+
+.btn{position:relative;display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:13.5px;font-weight:500;padding:13px 22px;border-radius:10px;overflow:hidden;isolation:isolate;transition:transform .2s var(--ease)}
+.btn::before{content:'';position:absolute;inset:0;z-index:-1;transform:translateY(101%);transition:transform .35s var(--ease)}
+.btn:hover::before{transform:none}.btn:active{transform:scale(.97)}
+.btn .ar{display:inline-block;transition:transform .3s var(--ease)}.btn:hover .ar{transform:translateX(4px)}
+.btn.lime{background:var(--lime);color:var(--ink)}.btn.lime::before{background:#fff}
+.btn.ghost{border:1px solid var(--ld);color:var(--td)}.btn.ghost::before{background:rgba(201,255,59,.12)}
+.btn.sm{padding:9px 16px;font-size:12.5px}
+.btn.ink{background:var(--ink);color:var(--bone)}.btn.ink::before{background:var(--ink3)}
+
+/* hero */
+.hero{position:relative;padding:64px 0 64px;overflow:hidden}
+#dots{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.hero .wrap{position:relative;display:grid;grid-template-columns:1.08fr .92fr;gap:56px;align-items:center}
+.eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--lime);display:flex;align-items:center;gap:10px}
+.eyebrow::after{content:'';width:9px;height:16px;background:var(--lime);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+h1{font-family:var(--disp);font-weight:600;font-size:clamp(46px,6vw,86px);line-height:.98;letter-spacing:-.045em;margin:26px 0 26px;color:#fff}
+h1 .w{display:inline-block;opacity:0;transform:translateY(.6em) rotate(2deg);animation:wIn .9s var(--ease) forwards;animation-delay:calc(var(--i)*70ms + 250ms);margin-right:.22em}
+h1 .hl{position:relative;color:var(--lime)}
+h1 .hl::after{content:'';position:absolute;left:0;right:.22em;bottom:.04em;height:.07em;background:var(--lime);transform:scaleX(0);transform-origin:left;animation:ul 1s var(--ease) 1.2s forwards}
+@keyframes wIn{to{opacity:1;transform:none}}
+@keyframes ul{to{transform:scaleX(1)}}
+.lede{max-width:520px;font-size:18.5px;color:#c4cfc3;opacity:0;animation:fadeUp .9s var(--ease) 1s forwards}
+.cta{display:flex;gap:14px;flex-wrap:wrap;margin-top:34px;opacity:0;animation:fadeUp .9s var(--ease) 1.2s forwards}
+@keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+.stats{display:grid;grid-template-columns:repeat(4,auto);gap:34px;margin-top:54px;opacity:0;animation:fadeUp .9s var(--ease) 1.4s forwards;justify-content:start}
+.stat b{display:block;font-family:var(--disp);font-weight:600;font-size:38px;letter-spacing:-.04em;color:#fff;line-height:1}
+.stat > span{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--md);margin-top:8px;max-width:130px}
+.stat b .count{display:inline}
+
+/* simulator */
+.sim{background:linear-gradient(180deg,var(--ink2),#08170f);border:1px solid var(--ld);border-radius:18px;padding:22px;position:relative;opacity:0;animation:fadeUp 1s var(--ease) .9s forwards;box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.sim::before{content:'';position:absolute;inset:-1px;border-radius:18px;padding:1px;background:linear-gradient(135deg,rgba(201,255,59,.5),transparent 40%,transparent 60%,rgba(201,255,59,.2));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.sim-h{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:11.5px;color:var(--md);letter-spacing:.04em;margin-bottom:16px}
+.seg{display:flex;background:rgba(0,0,0,.35);border:1px solid var(--ld);border-radius:9px;padding:3px;font-family:var(--mono);font-size:11.5px;margin-bottom:18px}
+.seg button{flex:1;padding:8px 10px;border-radius:6px;color:var(--md);transition:all .25s var(--ease)}
+.seg button.on{background:var(--lime);color:var(--ink);font-weight:500}
+.seg button.on.bad{background:var(--hot);color:#fff}
+.grid{display:grid;grid-template-columns:28px repeat(8,1fr);gap:5px;align-items:center}
+.grid .tl{font-family:var(--mono);font-size:10px;color:var(--md);text-align:right;padding-right:4px}
+.cell{height:30px;border-radius:4px;background:rgba(230,234,223,.06);transition:background .35s var(--ease),transform .35s var(--ease),box-shadow .35s}
+.cell.hit{background:var(--lime);box-shadow:0 0 14px rgba(201,255,59,.55);transform:scale(1.06)}
+.cell.hit.bad{background:var(--hot);box-shadow:0 0 14px rgba(255,91,46,.6)}
+.banks{display:grid;grid-template-columns:28px repeat(8,1fr);gap:5px;margin-top:10px;align-items:end;height:70px}
+.banks .tl{align-self:center}
+.bar{background:rgba(230,234,223,.08);border-radius:3px 3px 0 0;height:4px;transition:height .45s var(--ease),background .3s}
+.bar.on{background:var(--lime)}.bar.on.bad{background:var(--hot)}
+.axis{display:grid;grid-template-columns:28px repeat(8,1fr);gap:5px;margin-top:6px;font-family:var(--mono);font-size:10px;color:var(--md);text-align:center}
+.sim-f{display:flex;justify-content:space-between;align-items:baseline;margin-top:18px;padding-top:16px;border-top:1px solid var(--ld);font-family:var(--mono);font-size:12px;color:var(--md)}
+.sim-f b{font-family:var(--disp);font-size:34px;font-weight:600;letter-spacing:-.04em;color:var(--lime);transition:color .3s;margin-left:6px}
+.sim-f b.bad{color:var(--hot)}
+.cap{font-family:var(--mono);font-size:10.5px;color:var(--md);margin-top:10px;opacity:.75}
+
+/* ticker */
+.ticker{border-top:1px solid var(--ld);border-bottom:1px solid var(--ld);background:var(--ink2);overflow:hidden;padding:15px 0;font-family:var(--mono);font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--md)}
+.tk{display:flex;gap:46px;width:max-content;animation:tk 38s linear infinite}
+.tk span{display:flex;align-items:center;gap:46px;white-space:nowrap}
+.tk span::after{content:'';width:5px;height:5px;background:var(--lime);transform:rotate(45deg)}
+.ticker:hover .tk{animation-play-state:paused}
+@keyframes tk{to{transform:translateX(-50%)}}
+
+/* light sections */
+.light{background:var(--bone);color:var(--tl)}
+.light .eyebrow{color:var(--lime-d)}.light .eyebrow::after{background:var(--lime-d)}
+section.pad{padding:120px 0}
+h2{font-family:var(--disp);font-weight:600;font-size:clamp(34px,4.4vw,60px);line-height:1;letter-spacing:-.04em}
+.statement .g{display:grid;grid-template-columns:5fr 6fr;gap:80px;align-items:start}
+.statement p{font-size:18px;color:#34443a;margin-bottom:18px;max-width:600px}
+.statement p b{color:var(--tl);font-weight:600}
+.turns{margin-top:38px;border:1px solid var(--ll);border-radius:14px;padding:22px;background:var(--paper)}
+.turns h6{font-family:var(--mono);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ml);margin-bottom:14px;display:flex;justify-content:space-between}
+.turn{display:grid;grid-template-columns:54px 1fr 48px;gap:12px;align-items:center;font-family:var(--mono);font-size:11.5px;margin:8px 0}
+.strip{display:flex;gap:2px;height:16px}
+.strip i{flex:1;border-radius:1px;background:transparent;border:1px solid rgba(6,18,13,.22);transition:background .25s,border-color .25s;transition-delay:calc(var(--k)*14ms + var(--t)*160ms)}
+.turns.in .strip i.c{background:var(--tl);border-color:var(--tl)}
+.turn em{font-style:normal;text-align:right;color:var(--ml)}
+
+/* platform */
+.platform{background:var(--ink2);padding:110px 0 120px;border-top:1px solid var(--ld)}
+.pg{display:grid;grid-template-columns:170px 1fr;gap:60px}
+.side{position:sticky;top:110px;align-self:start;display:flex;flex-direction:column;gap:6px;font-size:14px;padding-top:34px}
+.side a{padding:7px 0 7px 16px;border-left:1px solid var(--ld);color:var(--md);transition:all .25s var(--ease)}
+.side a.on{color:var(--lime);border-left-color:var(--lime);padding-left:22px}
+.pane{border-top:1px solid var(--ld);padding:34px 0 96px}
+.pane:last-child{padding-bottom:0}
+.pane h3{font-family:var(--disp);font-weight:600;font-size:clamp(36px,4.2vw,58px);letter-spacing:-.04em;margin-bottom:22px;color:#fff}
+.two{display:grid;grid-template-columns:1fr 360px;gap:54px;align-items:start}
+.tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;border:1px solid var(--ld);border-radius:4px;padding:2px 8px;margin-bottom:18px;color:var(--md)}
+.tag.live{border-color:rgba(201,255,59,.5);color:var(--lime)}
+.intro{font-size:19px;line-height:1.45;max-width:520px;color:#d4ddd2}
+.feat{list-style:none;display:flex;flex-direction:column;gap:6px;margin-top:34px;max-width:560px}
+.feat li{display:grid;grid-template-columns:30px 1fr;gap:18px;padding:16px 14px;margin:0 -14px;border-radius:12px;font-size:15px;color:#cfd9cd;transition:background .3s,transform .3s var(--ease)}
+.feat li:hover{background:rgba(201,255,59,.06);transform:translateX(4px)}
+.feat svg{width:26px;height:26px;stroke:var(--lime);fill:none;stroke-width:1.3;margin-top:2px}
+.feat b{font-weight:600;color:#fff}
+.iso{width:100%;max-width:360px;animation:bob 8s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-12px)}}
+.iso .l,.iso .hot{fill:none;stroke-width:1;stroke-dasharray:1;stroke-dashoffset:1}
+.iso .l{stroke:rgba(230,234,223,.5)}.iso .hot{stroke:var(--lime)}
+.in .iso .l,.in .iso .hot{animation:draw 2.2s var(--ease) forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.iso .d{stroke:rgba(230,234,223,.25);stroke-dasharray:2 4;fill:none}
+.iso .glow{fill:rgba(201,255,59,.09)}
+.iso .dot{fill:var(--lime);transform-box:fill-box;transform-origin:center;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.9);opacity:.5}}
+.fill rect.r{fill:rgba(201,255,59,.16);stroke:var(--lime);stroke-width:1;transform-box:fill-box;transform-origin:left;animation:fillw 4.5s var(--ease) infinite}
+@keyframes fillw{0%{transform:scaleX(0)}45%,85%{transform:scaleX(1)}100%{transform:scaleX(1);opacity:.2}}
+
+.rows{margin-top:20px;border-top:1px solid var(--ld)}
+.row{border-bottom:1px solid var(--ld)}
+.row button{width:100%;display:flex;justify-content:space-between;align-items:center;text-align:left;padding:24px 0;font-family:var(--disp);font-weight:500;font-size:clamp(24px,2.6vw,34px);color:#d4ddd2;letter-spacing:-.03em;transition:color .2s,padding .3s var(--ease)}
+.row button:hover{color:var(--lime);padding-left:10px}
+.row button i{font-family:var(--mono);font-style:normal;font-size:22px;color:var(--lime);transition:transform .35s var(--ease)}
+.row.open button i{transform:rotate(135deg)}
+.row .body{max-height:0;overflow:hidden;color:var(--md);max-width:640px;transition:max-height .5s var(--ease),padding .5s var(--ease)}
+.row.open .body{max-height:160px;padding-bottom:26px}
+
+/* models */
+table.cat{width:100%;border-collapse:collapse;margin-top:46px;font-size:15px}
+table.cat th{font-family:var(--mono);font-weight:400;font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;text-align:left;color:var(--ml);padding:0 14px 14px 0;border-bottom:2px solid var(--tl)}
+table.cat td{padding:22px 14px 22px 0;border-bottom:1px solid var(--ll);vertical-align:top;transition:background .25s}
+table.cat tr:hover td{background:rgba(201,255,59,.22)}
+table.cat td.id{font-family:var(--mono);font-size:13.5px;font-weight:500}
+table.cat td small{display:block;color:var(--ml);font-size:13px;margin-top:3px;font-family:var(--body);font-weight:400}
+.note{font-family:var(--mono);font-size:12px;color:var(--ml);margin-top:18px}
+.sub{font-size:18px;color:#34443a;max-width:620px;margin-top:18px}
+
+.dev{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:52px;align-items:start}
+.tabs{display:flex;gap:6px;font-family:var(--mono);font-size:12.5px;margin-bottom:14px}
+.tabs button{padding:7px 14px;border-radius:999px;border:1px solid var(--ll);transition:all .2s}
+.tabs button.on{background:var(--tl);color:var(--lime);border-color:var(--tl)}
+pre.code{background:var(--ink);color:#d6e3d3;border-radius:14px;padding:24px;font-family:var(--mono);font-size:13px;line-height:1.7;overflow-x:auto;min-height:290px;border:1px solid var(--ink3)}
+pre.code::after{content:'▍';color:var(--lime);animation:blink 1s steps(1) infinite}
+.probe{border:1px solid var(--ll);border-radius:16px;background:var(--paper);padding:28px}
+.probe h4{font-family:var(--disp);font-weight:600;font-size:28px;letter-spacing:-.035em;margin:10px 0 8px}
+.probe p{font-size:14.5px;color:#34443a;margin-bottom:20px}
+.runs{margin-top:22px;font-family:var(--mono);font-size:12.5px}
+.run{display:grid;grid-template-columns:44px 1fr 1fr;gap:10px;padding:13px 0;border-top:1px solid var(--ll);animation:slide .6s var(--ease)}
+@keyframes slide{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
+.run .hit{background:var(--lime);padding:1px 6px;border-radius:3px;font-weight:500}
+
+.logs{margin-top:46px;border-top:2px solid var(--tl)}
+.log{display:grid;grid-template-columns:70px 1fr 120px;gap:24px;align-items:baseline;padding:26px 0;border-bottom:1px solid var(--ll);transition:padding .35s var(--ease),background .3s}
+.log:hover{padding-left:14px;background:rgba(201,255,59,.18)}
+.log .n{font-family:var(--mono);font-size:12.5px;color:var(--ml)}
+.log h5{font-family:var(--disp);font-weight:500;font-size:26px;line-height:1.15;letter-spacing:-.03em}
+.log p{font-size:14.5px;color:var(--ml);margin-top:6px;max-width:640px}
+.log .st{font-family:var(--mono);font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;text-align:right;color:var(--ml)}
+
+/* final */
+.final{background:var(--ink);padding:130px 0;position:relative;overflow:hidden;border-top:1px solid var(--ld)}
+.final .wrap{display:grid;grid-template-columns:1.3fr .7fr;gap:60px;align-items:center}
+.final h2{font-size:clamp(40px,5.6vw,80px);color:#fff}
+.final .cta{opacity:1;animation:none;margin-top:36px}
+.final .mk{justify-self:center}
+footer{background:var(--ink);border-top:1px solid var(--ld);padding:30px 0;font-family:var(--mono);font-size:12px;color:var(--md)}
+footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px}
+footer a:hover{color:var(--lime)}
+
+@media(max-width:960px){
+  .links{display:none}
+  .hero .wrap,.statement .g,.two,.dev,.final .wrap{grid-template-columns:1fr;gap:40px}
+  .pg{grid-template-columns:1fr}.side{display:none}
+  .stats{grid-template-columns:repeat(2,auto)}
+  .log{grid-template-columns:1fr;gap:6px}.log .st{text-align:left}
+  .iso{max-width:280px}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  .rv{opacity:1;transform:none}
+  h1 .w,.lede,.cta,.stats,.sim{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+<div id="prog"></div>
+
+<nav class="top" id="nav">
+  <div class="wrap nav-in">
+    <a class="logo" href="#" id="logo">
+      <span class="mark" id="mark"></span>
+      <span>swi<b>zz</b>le</span>
+    </a>
+    <div class="links">
+      <a href="#platform">Platform</a><a href="#models">Models</a><a href="#developers">Developers</a><a href="#research">Research</a><a href="/agents/quickstart.md">For agents</a>
+    </div>
+    <div class="right">
+      <a href="/v1/models">API</a><a href="/v1/telemetry">Status</a>
+      <button class="btn lime sm" onclick="getKey()">Get a key <span class="ar">→</span></button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <canvas id="dots"></canvas>
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">Inference for long-context agents</div>
+      <h1 id="h1">Stop paying to reread the same context.</h1>
+      <p class="lede">Coding and security agents resend the same repository every turn. swizzle keys every prompt prefix, serves it from cache, and bills cached input at a tenth of the price.</p>
+      <div class="cta">
+        <a class="btn lime" href="#developers">Get started <span class="ar">→</span></a>
+        <a class="btn ghost" href="/agents/quickstart.md">Agent quickstart <span class="ar">→</span></a>
+      </div>
+      <div class="stats">
+        <div class="stat"><b><span class="count" data-to="10">0</span>×</b><span>cheaper cached input</span></div>
+        <div class="stat"><b><span class="count" data-to="1">0</span>M</b><span>token context, top tier</span></div>
+        <div class="stat"><b><span class="count" data-to="2">0</span></b><span>wire formats, one endpoint</span></div>
+        <div class="stat"><b><span class="count" data-to="4">0</span></b><span>endpoints in catalog</span></div>
+      </div>
+    </div>
+
+    <div class="sim" aria-label="Bank conflict illustration">
+      <div class="sim-h"><span>SHARED MEMORY · 8 THREADS × 8 BANKS</span><span id="simk">col 0</span></div>
+      <div class="seg" id="seg">
+        <button data-m="lin" class="on bad">linear layout</button>
+        <button data-m="swz">swizzled · col ^ row</button>
+      </div>
+      <div class="grid" id="simgrid"></div>
+      <div class="banks" id="simbars"></div>
+      <div class="axis" id="simaxis"></div>
+      <div class="sim-f"><span>serialized passes<b id="passes">8</b></span><span id="simnote">8-way bank conflict</span></div>
+      <div class="cap">Illustration of why we swizzle attention tiles. Not a benchmark.</div>
+    </div>
+  </div>
+</header>
+
+<div class="ticker"><div class="tk" id="tk"></div></div>
+
+<section class="light statement pad">
+  <div class="wrap g">
+    <div class="rv"><div class="eyebrow">The problem</div><h2 style="margin-top:20px">A turn of an agent is mostly text the model has already seen.</h2></div>
+    <div>
+      <p class="rv" style="--d:.1s">In a coding session, nearly all of each request is the previous request: system prompt, tool schemas, the files you've opened. Most inference APIs recompute that prefix, or give you a flat cache discount you don't control.</p>
+      <p class="rv" style="--d:.2s"><b>We treat the prefix as the product.</b> Prompts are split into content-addressed blocks, matched against a shared ledger, and priced by what was actually reused. You see the split on every response.</p>
+      <div class="turns rv" style="--d:.3s" id="turns">
+        <h6><span>Illustrative · one six-turn coding session</span><span>■ reused &nbsp; □ new</span></h6>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="platform" id="platform">
+  <div class="wrap pg">
+    <aside class="side" id="side">
+      <a href="#p1" class="on">Inference</a><a href="#p2">Prefix cache</a><a href="#p3">Cyber</a><a href="#p4">Worklogs</a>
+    </aside>
+    <div>
+      <div class="pane rv" id="p1">
+        <h3>Inference</h3>
+        <div class="two"><div>
+          <span class="tag live">Preview</span>
+          <p class="intro">One endpoint, matched to the silicon. Sparse models stay on a single large-memory die so there is no tensor-parallel all-reduce in the decode loop.</p>
+          <ul class="feat">
+            <li><svg viewBox="0 0 26 26"><rect x="4" y="4" width="18" height="18" rx="2"/><path d="M9 4v18M17 4v18M4 9h18M4 17h18"/></svg><span><b>Single-die MoE.</b> A 192 GB accelerator holds the weights and a long KV cache together, so experts are not split across devices.</span></li>
+            <li><svg viewBox="0 0 26 26"><path d="M3 18 10 9l4 5 3-4 6 8"/><path d="M3 22h20"/></svg><span><b>Speculative decoding for code.</b> Agent output is mostly spans already in the prompt; prompt-lookup drafting accepts them in bulk.</span></li>
+            <li><svg viewBox="0 0 26 26"><path d="M13 3v6M13 17v6M3 13h6M17 13h6"/><circle cx="13" cy="13" r="3.5"/></svg><span><b>Kernels we write.</b> Attention tiles use XOR-swizzled shared-memory layouts, the same trick you just watched in the hero.</span></li>
+            <li><svg viewBox="0 0 26 26"><circle cx="13" cy="13" r="9"/><path d="M4 13h18M13 4c3 3 3 15 0 18M13 4c-3 3-3 15 0 18"/></svg><span><b>Both wire formats.</b> <span class="mono">/v1/chat/completions</span> and <span class="mono">/v1/messages</span>: change a base URL and Claude Code or an OpenAI SDK works.</span></li>
+          </ul></div>
+          <svg class="iso" viewBox="0 0 400 440" aria-hidden="true">
+            <polygon class="glow" points="200,214 330,282 200,350 70,282"/>
+            <polygon class="l" pathLength="1" points="200,24 370,112 200,200 30,112"/>
+            <polygon class="l" pathLength="1" points="200,70 290,112 200,154 110,112"/>
+            <polygon class="l" pathLength="1" points="200,168 370,256 200,344 30,256"/>
+            <polygon class="hot" pathLength="1" points="200,214 290,256 200,298 110,256"/>
+            <line class="d" x1="30" y1="112" x2="30" y2="256"/><line class="d" x1="370" y1="112" x2="370" y2="256"/><line class="d" x1="200" y1="200" x2="200" y2="344"/>
+            <line class="hot" pathLength="1" x1="200" y1="112" x2="200" y2="256"/>
+            <circle class="dot" cx="200" cy="256" r="4"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="pane rv" id="p2">
+        <h3>Prefix cache</h3>
+        <div class="two"><div>
+          <span class="tag live">Preview</span>
+          <p class="intro">Every request is hashed block by block. The longest matching prefix is served from cache and billed at the cached rate; the rest is billed as normal input.</p>
+          <ul class="feat">
+            <li><svg viewBox="0 0 26 26"><ellipse cx="13" cy="7" rx="8" ry="3"/><path d="M5 7v6c0 1.7 3.6 3 8 3s8-1.3 8-3V7M5 13v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span><b>Shared ledger.</b> Blocks are keyed by model and content with a sliding TTL, so a second agent on the same repo hits the first one's cache.</span></li>
+            <li><svg viewBox="0 0 26 26"><path d="M4 20 10 12l4 4 8-10"/><path d="M4 22h18"/></svg><span><b>Priced by reuse.</b> Cached input is a tenth of uncached, returned as <span class="mono">prompt_tokens_details.cached_tokens</span>.</span></li>
+            <li><svg viewBox="0 0 26 26"><rect x="4" y="5" width="18" height="16" rx="2"/><path d="M4 10h18M9 15h4"/></svg><span><b>Visible in headers.</b> <span class="mono">X-Swizzle-Cache-Hit-Tokens</span> and <span class="mono">X-Swizzle-Uncached-Tokens</span> on every response.</span></li>
+          </ul></div>
+          <svg class="iso fill" viewBox="0 0 400 300" aria-hidden="true" style="animation:none">
+            <g fill="none" stroke="rgba(230,234,223,.3)"><rect x="40" y="40" width="320" height="34"/><rect x="40" y="86" width="320" height="34"/><rect x="40" y="132" width="320" height="34"/><rect x="40" y="178" width="320" height="34"/></g>
+            <rect class="r" x="40" y="40" width="240" height="34" style="animation-delay:0s"/><rect class="r" x="40" y="86" width="260" height="34" style="animation-delay:.25s"/><rect class="r" x="40" y="132" width="290" height="34" style="animation-delay:.5s"/><rect class="r" x="40" y="178" width="300" height="34" style="animation-delay:.75s"/>
+            <text x="40" y="250" fill="#8fa398" font-family="IBM Plex Mono" font-size="12">reused prefix</text>
+            <text x="360" y="250" fill="#8fa398" font-family="IBM Plex Mono" font-size="12" text-anchor="end">new tokens</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="pane rv" id="p3">
+        <h3>Cyber</h3>
+        <div class="two"><div>
+          <span class="tag">Planned</span>
+          <p class="intro">A separate endpoint for security teams whose tooling trips general-purpose refusal filters: exploit triage, binary analysis, detection rules.</p>
+          <ul class="feat">
+            <li><svg viewBox="0 0 26 26"><path d="M13 3 4 7v6c0 5 4 8 9 10 5-2 9-5 9-10V7z"/></svg><span><b>Scoped model, not a loophole.</b> Access is per organization, with acceptable-use terms agreed before a key is issued.</span></li>
+            <li><svg viewBox="0 0 26 26"><rect x="5" y="11" width="16" height="11" rx="2"/><path d="M9 11V8a4 4 0 0 1 8 0v3"/></svg><span><b>No prompt retention.</b> Request bodies live in memory for the request only. Verifiable attestation is on the roadmap, not shipped.</span></li>
+            <li><svg viewBox="0 0 26 26"><path d="M6 4h10l4 4v14H6z"/><path d="M16 4v4h4M9 13h8M9 17h8"/></svg><span><b>Structured output.</b> SARIF and unified diffs as grammar-constrained formats so scanners can consume results directly.</span></li>
+          </ul></div>
+          <svg class="iso" viewBox="0 0 400 300" aria-hidden="true">
+            <polygon class="l" pathLength="1" points="200,30 330,95 200,160 70,95"/><polygon class="hot" pathLength="1" points="200,90 330,155 200,220 70,155"/><polygon class="l" pathLength="1" points="200,150 330,215 200,280 70,215"/>
+            <line class="d" x1="70" y1="95" x2="70" y2="215"/><line class="d" x1="330" y1="95" x2="330" y2="215"/>
+            <circle class="dot" cx="200" cy="155" r="4"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="pane rv" id="p4">
+        <h3>Worklogs</h3>
+        <div class="rows">
+          <div class="row"><button onclick="tg(this)">Swizzled shared-memory layouts <i>+</i></button><div class="body">How an XOR address transform removes 32-way bank conflicts in attention tile loads, with the PTX. Draft in progress; numbers will come from our own kernel benchmarks.</div></div>
+          <div class="row"><button onclick="tg(this)">Prefix reuse in coding agents <i>+</i></button><div class="body">Measuring how much of each turn is repeated context across real agent traces, and what a block-hash ledger recovers. Draft in progress.</div></div>
+          <div class="row"><button onclick="tg(this)">MoE decode on one large die <i>+</i></button><div class="body">A roofline argument for keeping a sparse model on one device, checked against measurements on rented hardware. Not started.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="light pad" id="models">
+  <div class="wrap">
+    <div class="eyebrow rv">Models</div>
+    <h2 class="rv" style="margin-top:20px;--d:.05s">Planned catalog.</h2>
+    <p class="sub rv" style="--d:.1s">Prices are what the gateway bills today. Hardware is the target each endpoint is being built against. Latency and throughput get published here once measured.</p>
+    <table class="cat rv" style="--d:.15s">
+      <thead><tr><th>Model</th><th>Target hardware</th><th>Context</th><th>Input</th><th>Cached</th><th>Output</th></tr></thead>
+      <tbody id="catalog"></tbody>
+    </table>
+    <p class="note">Per 1M tokens, USD. Live from <a href="/v1/models" style="text-decoration:underline">/v1/models</a>.</p>
+  </div>
+</section>
+
+<section class="light" id="developers" style="padding:20px 0 120px">
+  <div class="wrap">
+    <div class="eyebrow rv">Developers</div>
+    <h2 class="rv" style="margin-top:20px;--d:.05s">Change a base URL. Watch the cache fill.</h2>
+    <p class="sub rv" style="--d:.1s">The panel on the right calls this gateway's real prefix ledger. Send the same prompt twice and the second run reports the reused tokens.</p>
+    <div class="dev">
+      <div class="rv" style="--d:.15s">
+        <div class="tabs" id="tabs"><button class="on" data-t="curl">curl</button><button data-t="py">Python</button><button data-t="cc">Claude Code</button></div>
+        <pre class="code" id="code"></pre>
+      </div>
+      <div class="probe rv" style="--d:.25s">
+        <span class="mono" style="font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ml)">Prefix ledger</span>
+        <h4>Send the same context twice</h4>
+        <p>A ~1,500-token system prompt, then a short question. The backend is a stub; the cache accounting is real.</p>
+        <button class="btn ink" id="probe-btn" onclick="probe()">Send request <span class="ar">→</span></button>
+        <div class="runs" id="runs"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="light pad" id="research" style="background:var(--paper);border-top:1px solid var(--ll)">
+  <div class="wrap">
+    <div class="eyebrow rv">Research</div>
+    <h2 class="rv" style="margin-top:20px;--d:.05s">Notes as we build it.</h2>
+    <div class="logs">
+      <div class="log rv"><span class="n">01</span><div><h5>Swizzled shared-memory layouts for attention tiles</h5><p>Bank-conflict analysis and the PTX for an XOR-swizzled tile load.</p></div><span class="st">Drafting</span></div>
+      <div class="log rv" style="--d:.08s"><span class="n">02</span><div><h5>How much of an agent turn is repeated context?</h5><p>Trace measurements and what block-level hashing recovers.</p></div><span class="st">Drafting</span></div>
+      <div class="log rv" style="--d:.16s"><span class="n">03</span><div><h5>Keeping sparse models on one die</h5><p>A roofline argument, then a benchmark on rented hardware.</p></div><span class="st">Planned</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="final">
+  <div class="wrap">
+    <div>
+      <h2 class="rv">Point your agent at it and see what it reuses.</h2>
+      <div class="cta rv" style="--d:.15s">
+        <button class="btn lime" onclick="getKey()">Get a key <span class="ar">→</span></button>
+        <a class="btn ghost" href="/agents/quickstart.md">/agents/quickstart.md <span class="ar">→</span></a>
+      </div>
+    </div>
+    <div class="mk rv" style="--d:.2s"><div class="mark big" id="mark2"></div></div>
+  </div>
+</section>
+
+<footer><div class="wrap"><span>© 2026 swizzle</span><span><a href="/v1/models">/v1/models</a> &nbsp;·&nbsp; <a href="/v1/telemetry">/v1/telemetry</a> &nbsp;·&nbsp; <a href="/agents/quickstart.md">/agents/quickstart.md</a></span></div></footer>
+
+<script>
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+
+/* ---------- logo: 4x4 grid, lit cell per row at col = row ^ mask ---------- */
+function buildMark(el){
+  el.innerHTML='';
+  const cells=[];
+  for(let r=0;r<4;r++)for(let c=0;c<4;c++){const i=document.createElement('i');el.appendChild(i);cells.push(i);}
+  return cells;
+}
+const marks=[buildMark($('#mark')),buildMark($('#mark2'))];
+let mask=0;
+function paintMarks(){
+  marks.forEach(cells=>cells.forEach((i,k)=>{const r=k>>2,c=k&3;i.classList.toggle('on',c===(r^mask));}));
+}
+paintMarks();
+if(!RM) setInterval(()=>{mask=(mask+1)&3;paintMarks();},1300);
+$('#logo').addEventListener('mouseenter',()=>{mask=(mask+1)&3;paintMarks();});
+
+/* ---------- headline word reveal ---------- */
+(function(){
+  const h=$('#h1'); const words=h.textContent.trim().split(/\s+/);
+  h.innerHTML=words.map((w,i)=>`<span class="w ${w.startsWith('reread')?'hl':''}" style="--i:${i}">${w}</span>`).join('');
+})();
+
+/* ---------- hero dot field reacting to cursor ---------- */
+(function(){
+  const cv=$('#dots'), ctx=cv.getContext('2d'); let W,H,mx=-999,my=-999,dpr=Math.min(devicePixelRatio||1,2);
+  const S=30;
+  function size(){const r=cv.parentElement.getBoundingClientRect();W=r.width;H=r.height;cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}
+  size();addEventListener('resize',size);
+  cv.parentElement.addEventListener('mousemove',e=>{const r=cv.getBoundingClientRect();mx=e.clientX-r.left;my=e.clientY-r.top;});
+  cv.parentElement.addEventListener('mouseleave',()=>{mx=my=-999;});
+  function frame(t){
+    ctx.clearRect(0,0,W,H);
+    for(let x=S/2;x<W;x+=S)for(let y=S/2;y<H;y+=S){
+      const d=Math.hypot(x-mx,y-my);
+      const wave=(Math.sin(x*.012+t*.0007)+Math.sin(y*.015-t*.0006))*.5;
+      let a=.07+.05*wave;
+      let r=1.1;
+      if(d<170){const k=1-d/170;a+=k*.85;r+=k*1.6;}
+      ctx.fillStyle=`rgba(201,255,59,${Math.max(0,a)})`;
+      ctx.fillRect(x-r/2,y-r/2,r,r);
+    }
+    if(!RM)requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+
+/* ---------- bank conflict simulator ---------- */
+(function(){
+  const g=$('#simgrid'), bars=$('#simbars'), axis=$('#simaxis');
+  const cells=[];
+  for(let t=0;t<8;t++){
+    const l=document.createElement('div');l.className='tl';l.textContent='t'+t;g.appendChild(l);
+    for(let c=0;c<8;c++){const d=document.createElement('div');d.className='cell';g.appendChild(d);cells.push(d);}
+  }
+  bars.innerHTML='<div class="tl"></div>';const bs=[];
+  axis.innerHTML='<div></div>';
+  for(let c=0;c<8;c++){const b=document.createElement('div');b.className='bar';bars.appendChild(b);bs.push(b);const a=document.createElement('div');a.textContent='b'+c;axis.appendChild(a);}
+  let mode='lin',k=0,auto=true;
+  function render(){
+    const bad=mode==='lin'; const load=new Array(8).fill(0);
+    cells.forEach((d,i)=>{
+      const t=i>>3,c=i&7; const target=bad?k:(k^t); const hit=c===target;
+      d.className='cell'+(hit?' hit':'')+(hit&&bad?' bad':'');
+      if(hit)load[c]++;
+    });
+    bs.forEach((b,c)=>{b.style.height=(4+load[c]*8)+'px';b.className='bar'+(load[c]?' on':'')+(load[c]&&bad?' bad':'');});
+    const p=Math.max(...load);
+    $('#passes').textContent=p;$('#passes').className=bad?'bad':'';
+    $('#simnote').textContent=bad?'8-way bank conflict':'conflict-free';
+    $('#simk').textContent='col '+k;
+    $$('#seg button').forEach(b=>{const on=b.dataset.m===mode;b.className=on?('on'+(b.dataset.m==='lin'?' bad':'')):'';});
+  }
+  $('#seg').addEventListener('click',e=>{const m=e.target.dataset.m;if(!m)return;mode=m;auto=false;render();});
+  render();
+  if(!RM){let n=0;setInterval(()=>{k=(k+1)&7;n++;if(auto&&n%10===0)mode=mode==='lin'?'swz':'lin';render();},850);}
+})();
+
+/* ---------- ticker ---------- */
+(function(){
+  const items=['POST /v1/chat/completions','POST /v1/messages','SSE streaming','prefix-cache ledger','tool calls','1M-token context','cached input at 10%','per-response cache headers'];
+  const row=items.map(t=>`<span>${t}</span>`).join('');
+  $('#tk').innerHTML=row+row+row+row;
+})();
+
+/* ---------- illustrative turns ---------- */
+(function(){
+  const pct=[0,88,92,94,95,96], N=44, box=$('#turns');
+  pct.forEach((p,t)=>{
+    const row=document.createElement('div');row.className='turn';
+    let s='';for(let k=0;k<N;k++)s+=`<i class="${k<Math.round(N*p/100)?'c':''}" style="--k:${k};--t:${t}"></i>`;
+    row.innerHTML=`<span>turn ${t+1}</span><div class="strip">${s}</div><em>${p}%</em>`;box.appendChild(row);
+  });
+})();
+
+/* ---------- scroll: progress, nav, reveal, counters, scrollspy ---------- */
+const nav=$('#nav'),prog=$('#prog');
+addEventListener('scroll',()=>{
+  nav.classList.toggle('s',scrollY>8);
+  const h=document.documentElement;prog.style.width=(scrollY/(h.scrollHeight-h.clientHeight)*100)+'%';
+},{passive:true});
+
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}}),{threshold:.12});
+$$('.rv').forEach(el=>io.observe(el));
+const io2=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io2.unobserve(e.target);}}),{threshold:.35});
+io2.observe($('#turns'));
+
+function count(el){
+  const to=+el.dataset.to;if(RM){el.textContent=to;return;}
+  const t0=performance.now(),D=1400;
+  (function step(t){const p=Math.min(1,(t-t0)/D),e=1-Math.pow(1-p,3);el.textContent=Math.round(to*e);if(p<1)requestAnimationFrame(step);})(t0);
+}
+setTimeout(()=>$$('.count').forEach(count),1500);
+
+const links=$$('#side a');
+const so=new IntersectionObserver(es=>es.forEach(e=>{
+  if(e.isIntersecting)links.forEach(l=>l.classList.toggle('on',l.getAttribute('href')==='#'+e.target.id));
+}),{rootMargin:'-30% 0px -60% 0px'});
+links.forEach(l=>so.observe($(l.getAttribute('href'))));
+function tg(b){b.parentElement.classList.toggle('open');}
+
+/* ---------- developer snippets with typing effect ---------- */
+let KEY='swz_live_your_key';
+const origin=location.origin;
+const snippets={
+  curl:()=>`curl ${origin}/v1/chat/completions \\
+  -H "Authorization: Bearer ${KEY}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "swizzle/qwen3.6-35b-a3b-fp8",
+    "messages": [
+      {"role": "system", "content": "<your repo context>"},
+      {"role": "user", "content": "Where is the retry logic?"}
+    ]
+  }'`,
+  py:()=>`from openai import OpenAI
+
+client = OpenAI(base_url="${origin}/v1", api_key="${KEY}")
+
+r = client.chat.completions.create(
+    model="swizzle/qwen3.6-35b-a3b-fp8",
+    messages=[{"role": "user", "content": "Where is the retry logic?"}],
+)
+print(r.usage.prompt_tokens_details.cached_tokens)`,
+  cc:()=>`export ANTHROPIC_BASE_URL="${origin}"
+export ANTHROPIC_API_KEY="${KEY}"
+export ANTHROPIC_MODEL="swizzle/deepseek-v4.1-flash-1017"
+claude`
+};
+let tab='curl',typer=null;
+function paint(){
+  const txt=snippets[tab](),el=$('#code');clearInterval(typer);
+  if(RM){el.textContent=txt;return;}
+  let i=0;el.textContent='';
+  typer=setInterval(()=>{i+=4;el.textContent=txt.slice(0,i);if(i>=txt.length)clearInterval(typer);},12);
+}
+$('#tabs').addEventListener('click',e=>{
+  const t=e.target.dataset.t;if(!t)return;tab=t;
+  $$('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));paint();
+});
+let painted=false;
+new IntersectionObserver((es,o)=>{if(es[0].isIntersecting&&!painted){painted=true;paint();o.disconnect();}},{threshold:.3}).observe($('#code'));
+
+async function getKey(){
+  try{
+    const r=await fetch('/v1/keys/issue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:'web'})});
+    const d=await r.json();KEY=d.key;paint();window.prompt('Your key (copy it):',KEY);
+  }catch(e){}
+  $('#developers').scrollIntoView();
+}
+
+fetch('/v1/models').then(r=>r.json()).then(d=>{
+  $('#catalog').innerHTML=d.data.map(m=>`
+    <tr><td class="id">${m.id}<small>${m.architecture}</small></td><td>${m.hardware}</td>
+    <td>${m.context_window>=1e6?'1M':Math.round(m.context_window/1024)+'K'}</td>
+    <td>$${m.input_price_per_m.toFixed(2)}</td><td>$${m.cached_price_per_m.toFixed(3)}</td><td>$${m.output_price_per_m.toFixed(2)}</td></tr>`).join('');
+}).catch(()=>{});
+
+const ctx='src/attention/tile.cu: '.repeat(60);let n=0;
+async function probe(){
+  const btn=$('#probe-btn');btn.firstChild.textContent='Sending… ';n++;
+  try{
+    const r=await fetch('/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'swizzle/qwen3.6-35b-a3b-fp8',messages:[{role:'system',content:ctx},{role:'user',content:'Question '+n}]})});
+    const d=await r.json();
+    const total=d.usage.prompt_tokens,cached=d.usage.prompt_tokens_details.cached_tokens,unc=total-cached;
+    const cost=(cached*0.02+unc*0.20)/1e6,full=total*0.20/1e6;
+    const el=document.createElement('div');el.className='run';
+    el.innerHTML=`<b>#${n}</b><span>cached <span class="${cached?'hit':''}">${cached}</span> / ${total}</span><span>$${cost.toFixed(6)} <span style="color:var(--ml)">vs $${full.toFixed(6)}</span></span>`;
+    $('#runs').prepend(el);
+  }catch(e){}
+  btn.firstChild.textContent='Send request ';
+}
+</script>
+</body>
+</html>
