@@ -23,3 +23,4 @@ class RateLimitError(SwizzleError):
 class WorkerUnavailableError(SwizzleError):
     """Raised when no silicon workers are healthy in the target cluster pool."""
     pass
+

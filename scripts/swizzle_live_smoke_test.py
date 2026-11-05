@@ -140,3 +140,4 @@ func (r *Router) Register(path string, h http.HandlerFunc) {
 
 if __name__ == "__main__":
     main()
+

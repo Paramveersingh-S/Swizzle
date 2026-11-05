@@ -180,3 +180,4 @@ class AsyncCompletions:
             raise RateLimitError("Swizzle rate limit or token bucket exhausted", status_code=429, response_body=resp.text)
         elif resp.status_code >= 400:
             raise SwizzleError(f"HTTP {resp.status_code}: {resp.text}", status_code=resp.status_code, response_body=resp.text)
+

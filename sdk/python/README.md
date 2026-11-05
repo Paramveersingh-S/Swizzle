@@ -99,3 +99,4 @@ Every `response.telemetry` object exposes:
 * `pd_mode`: `Disaggregated (Prefill->Decode)` or `Colocated`.
 * `worker_node`: Target accelerator node ID.
 * `cost_usd` & `saved_usd`: Exact metered micro-dollar accounting.
+

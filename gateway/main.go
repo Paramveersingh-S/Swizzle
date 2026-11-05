@@ -472,14 +472,14 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			if auth := r.Header.Get("Authorization"); auth != "" {
 				upReq.Header.Set("Authorization", auth)
 			}
-			client := &http.Client{Timeout: 30 * time.Second}
+			client := &http.Client{Timeout: 180 * time.Second}
 			resp, err := client.Do(upReq)
 			if err == nil && resp.StatusCode < 400 {
 				defer resp.Body.Close()
 				prefixRouter.MarkWorkerSuccess(workerID)
 				elapsedMs := int(time.Since(start).Milliseconds())
 				w.Header().Set("X-Swizzle-TTFT-Ms", fmt.Sprintf("%d", elapsedMs))
-				w.Header().Set("X-Swizzle-Hardware", "NVIDIA A100 GPU Worker (Colab Pro)")
+				w.Header().Set("X-Swizzle-Hardware", "NVIDIA L4/A100 GPU Worker (Colab Pro)")
 				w.Header().Set("X-Swizzle-Live-Worker", upstreamURL)
 				for k, v := range resp.Header {
 					if strings.HasPrefix(k, "Content-") {
@@ -487,7 +487,21 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 				w.WriteHeader(resp.StatusCode)
-				_, _ = io.Copy(w, resp.Body)
+				if flusher, ok := w.(http.Flusher); ok {
+					buf := make([]byte, 4096)
+					for {
+						n, readErr := resp.Body.Read(buf)
+						if n > 0 {
+							_, _ = w.Write(buf[:n])
+							flusher.Flush()
+						}
+						if readErr != nil {
+							break
+						}
+					}
+				} else {
+					_, _ = io.Copy(w, resp.Body)
+				}
 				return
 			}
 			prefixRouter.MarkWorkerFailure(workerID)

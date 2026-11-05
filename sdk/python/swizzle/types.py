@@ -72,3 +72,4 @@ class ChatCompletionChunk(BaseModel):
     model: str
     choices: List[ChatChunkChoice]
     telemetry: Optional[SwizzleTelemetry] = None
+
