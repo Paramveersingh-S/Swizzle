@@ -145,3 +145,4 @@ Evaluated across three realistic autonomous agent workloads using [`scripts/swiz
 5. [`gateway/main.go`](file:///d:/Projects/OSS/swizzle/gateway/main.go) *(Modified)*: Ingests context into the speculative engine and exposes `X-Swizzle-Speculative-*` HTTP headers.
 6. [`gateway/swizzle-gateway.exe`](file:///d:/Projects/OSS/swizzle/gateway/swizzle-gateway.exe) *(Rebuilt)*: Fresh production binary with Swizzle-Draft embedded.
 7. [`docs/worklogs/WORKLOG_OPTION_A_SPECULATIVE_DRAFT.md`](file:///d:/Projects/OSS/swizzle/docs/worklogs/WORKLOG_OPTION_A_SPECULATIVE_DRAFT.md) *(Created)*: Complete technical worklog.
+

@@ -101,3 +101,4 @@ func TestSpeculativeVerificationRejection(t *testing.T) {
 		t.Errorf("expected bonus token 'internal', got %q", verif.BonusToken)
 	}
 }
+

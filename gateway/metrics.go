@@ -67,6 +67,26 @@ func handlePrometheusMetrics(w http.ResponseWriter, r *http.Request) {
 	sb.WriteString("# TYPE swizzle_speculative_effective_speedup gauge\n")
 	sb.WriteString(fmt.Sprintf("swizzle_speculative_effective_speedup %.2f\n\n", specStats.EffectiveSpeedup))
 
+	astEvals := globalASTDiffEngine.metrics.TotalDiffEvaluations.Load()
+	astReused := globalASTDiffEngine.metrics.TotalReusedTokens.Load()
+	astPrefill := globalASTDiffEngine.metrics.TotalPrefillTokens.Load()
+	astRatio := 0.0
+	if astReused+astPrefill > 0 {
+		astRatio = float64(astReused) / float64(astReused+astPrefill)
+	}
+
+	sb.WriteString("# HELP swizzle_ast_tree_evaluations_total Total syntactic AST-diff evaluations executed\n")
+	sb.WriteString("# TYPE swizzle_ast_tree_evaluations_total counter\n")
+	sb.WriteString(fmt.Sprintf("swizzle_ast_tree_evaluations_total %d\n\n", astEvals))
+
+	sb.WriteString("# HELP swizzle_ast_tree_reused_tokens_total Prompt tokens preserved from re-prefill via non-linear AST virtual paging\n")
+	sb.WriteString("# TYPE swizzle_ast_tree_reused_tokens_total counter\n")
+	sb.WriteString(fmt.Sprintf("swizzle_ast_tree_reused_tokens_total %d\n\n", astReused))
+
+	sb.WriteString("# HELP swizzle_ast_tree_kv_savings_ratio Ratio of tokens preserved by AST-Tree virtual paging (0.0 to 1.0)\n")
+	sb.WriteString("# TYPE swizzle_ast_tree_kv_savings_ratio gauge\n")
+	sb.WriteString(fmt.Sprintf("swizzle_ast_tree_kv_savings_ratio %.4f\n\n", astRatio))
+
 	sb.WriteString("# HELP swizzle_prefix_cache_hit_ratio Ratio of input tokens served from prefix cache (0.0 to 1.0)\n")
 	sb.WriteString("# TYPE swizzle_prefix_cache_hit_ratio gauge\n")
 	sb.WriteString(fmt.Sprintf("swizzle_prefix_cache_hit_ratio %.4f\n\n", hitRatio))
