@@ -105,3 +105,4 @@ func TestPDFailoverHealthyWorker(t *testing.T) {
 		t.Errorf("expected failover to alternative prefill worker")
 	}
 }
+

@@ -178,3 +178,4 @@ Evaluated via [`scripts/swizzle_pd_disagg_bench.py`](file:///d:/Projects/OSS/swi
 5. [`gateway/main.go`](file:///d:/Projects/OSS/swizzle/gateway/main.go) *(Modified)*: Dispatched requests via `globalPDScheduler` and exposed `X-Swizzle-PD-*` HTTP headers.
 6. [`gateway/swizzle-gateway.exe`](file:///d:/Projects/OSS/swizzle/gateway/swizzle-gateway.exe) *(Rebuilt)*: Up-to-date production binary with Option C embedded.
 7. [`docs/worklogs/WORKLOG_OPTION_C_PD_DISAGGREGATION.md`](file:///d:/Projects/OSS/swizzle/docs/worklogs/WORKLOG_OPTION_C_PD_DISAGGREGATION.md) *(Created)*: Comprehensive technical worklog.
+
