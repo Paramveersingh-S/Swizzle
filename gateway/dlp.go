@@ -69,3 +69,4 @@ func (v *SecretVault) Restore(completion string) string {
 	}
 	return out
 }
+

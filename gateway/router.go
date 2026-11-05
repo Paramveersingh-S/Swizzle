@@ -273,3 +273,4 @@ func handleWorkers(w http.ResponseWriter, r *http.Request) {
 		"workers": prefixRouter.ListWorkers(),
 	})
 }
+

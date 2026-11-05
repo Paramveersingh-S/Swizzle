@@ -10,3 +10,4 @@ scrape_configs:
         labels:
           service: "swizzle-gateway"
           environment: "enterprise-production"
+

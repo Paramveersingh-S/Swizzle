@@ -28,6 +28,8 @@ func handlePrometheusMetrics(w http.ResponseWriter, r *http.Request) {
 		hitRatio = float64(cachedIn) / float64(totalIn)
 	}
 
+	specStats := globalSpeculativeEngine.GetStats()
+
 	var sb strings.Builder
 	sb.WriteString("# HELP swizzle_requests_total Total inference requests processed by Swizzle Edge Gateway\n")
 	sb.WriteString("# TYPE swizzle_requests_total counter\n")
@@ -48,6 +50,22 @@ func handlePrometheusMetrics(w http.ResponseWriter, r *http.Request) {
 	sb.WriteString("# HELP swizzle_secrets_scrubbed_total High-entropy credentials redacted at the edge via ZDR DLP scrubber\n")
 	sb.WriteString("# TYPE swizzle_secrets_scrubbed_total counter\n")
 	sb.WriteString(fmt.Sprintf("swizzle_secrets_scrubbed_total %d\n\n", scrubbed))
+
+	sb.WriteString("# HELP swizzle_speculative_drafts_proposed_total Speculative tokens proposed via Swizzle-Draft N-gram trie\n")
+	sb.WriteString("# TYPE swizzle_speculative_drafts_proposed_total counter\n")
+	sb.WriteString(fmt.Sprintf("swizzle_speculative_drafts_proposed_total %d\n\n", specStats.DraftsProposed))
+
+	sb.WriteString("# HELP swizzle_speculative_drafts_accepted_total Speculative tokens accepted without extra forward passes\n")
+	sb.WriteString("# TYPE swizzle_speculative_drafts_accepted_total counter\n")
+	sb.WriteString(fmt.Sprintf("swizzle_speculative_drafts_accepted_total %d\n\n", specStats.DraftsAccepted))
+
+	sb.WriteString("# HELP swizzle_speculative_acceptance_ratio Ratio of speculative tokens accepted (0.0 to 1.0)\n")
+	sb.WriteString("# TYPE swizzle_speculative_acceptance_ratio gauge\n")
+	sb.WriteString(fmt.Sprintf("swizzle_speculative_acceptance_ratio %.4f\n\n", specStats.AcceptanceRate))
+
+	sb.WriteString("# HELP swizzle_speculative_effective_speedup Generation speedup factor achieved via speculative decoding\n")
+	sb.WriteString("# TYPE swizzle_speculative_effective_speedup gauge\n")
+	sb.WriteString(fmt.Sprintf("swizzle_speculative_effective_speedup %.2f\n\n", specStats.EffectiveSpeedup))
 
 	sb.WriteString("# HELP swizzle_prefix_cache_hit_ratio Ratio of input tokens served from prefix cache (0.0 to 1.0)\n")
 	sb.WriteString("# TYPE swizzle_prefix_cache_hit_ratio gauge\n")
@@ -80,3 +98,4 @@ func handlePrometheusMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	_, _ = w.Write([]byte(sb.String()))
 }
+

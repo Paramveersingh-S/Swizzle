@@ -26,3 +26,4 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=2s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/v1/telemetry || exit 1
 
 ENTRYPOINT ["/app/swizzle-gateway"]
+

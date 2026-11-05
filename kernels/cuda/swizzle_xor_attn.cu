@@ -136,3 +136,4 @@ int main() {
     cudaFree(d_out);
     return 0;
 }
+

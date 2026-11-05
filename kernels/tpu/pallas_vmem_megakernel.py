@@ -78,3 +78,4 @@ if __name__ == "__main__":
         out.block_until_ready()
         dt_ms = (time.perf_counter() - t0) * 1000.0
         print(f"✅ Output shape: {out.shape} | Execution time: {dt_ms:.3f} ms")
+
