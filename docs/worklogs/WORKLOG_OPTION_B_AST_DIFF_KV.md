@@ -161,3 +161,4 @@ Evaluated via [`scripts/swizzle_ast_diff_bench.py`](file:///d:/Projects/OSS/swiz
 5. [`gateway/main.go`](file:///d:/Projects/OSS/swizzle/gateway/main.go) *(Modified)*: Ingested AST trees, calculated semantic diffs, and exposed `X-Swizzle-AST-*` headers.
 6. [`gateway/swizzle-gateway.exe`](file:///d:/Projects/OSS/swizzle/gateway/swizzle-gateway.exe) *(Rebuilt)*: Up-to-date production binary with Option B embedded.
 7. [`docs/worklogs/WORKLOG_OPTION_B_AST_DIFF_KV.md`](file:///d:/Projects/OSS/swizzle/docs/worklogs/WORKLOG_OPTION_B_AST_DIFF_KV.md) *(Created)*: Comprehensive technical worklog.
+

@@ -142,3 +142,4 @@ func CleanDatabase() error {
 		t.Errorf("CanonicalReorder should place warm unchanged block FormatOutput before modified block CalculateMetrics")
 	}
 }
+

@@ -232,7 +232,7 @@ func withCORS(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key, anthropic-version, X-Swizzle-ZDR")
-		w.Header().Set("Access-Control-Expose-Headers", "X-Swizzle-TTFT-Ms, X-Swizzle-Cache-Hit-Tokens, X-Swizzle-Uncached-Tokens, X-Swizzle-Tokens-Saved, X-Swizzle-Compression-Ratio, X-Swizzle-Secrets-Redacted, X-Swizzle-Worker-Node, X-Swizzle-Cost-USD, X-Swizzle-Saved-USD, X-Swizzle-Hardware, X-Swizzle-ZDR-Attestation, X-Swizzle-Speculative-Engine, X-Swizzle-Speculative-Draft-Len, X-Swizzle-Speculative-Acceptance, X-Swizzle-Speculative-Speedup, X-Swizzle-Effective-TPS, X-Swizzle-AST-Reuse-Pct, X-Swizzle-AST-Prefill-Tokens, X-Swizzle-AST-Reused-Tokens, X-Swizzle-AST-Diff-Blocks")
+		w.Header().Set("Access-Control-Expose-Headers", "X-Swizzle-TTFT-Ms, X-Swizzle-Cache-Hit-Tokens, X-Swizzle-Uncached-Tokens, X-Swizzle-Tokens-Saved, X-Swizzle-Compression-Ratio, X-Swizzle-Secrets-Redacted, X-Swizzle-Worker-Node, X-Swizzle-Cost-USD, X-Swizzle-Saved-USD, X-Swizzle-Hardware, X-Swizzle-ZDR-Attestation, X-Swizzle-Speculative-Engine, X-Swizzle-Speculative-Draft-Len, X-Swizzle-Speculative-Acceptance, X-Swizzle-Speculative-Speedup, X-Swizzle-Effective-TPS, X-Swizzle-AST-Reuse-Pct, X-Swizzle-AST-Prefill-Tokens, X-Swizzle-AST-Reused-Tokens, X-Swizzle-AST-Diff-Blocks, X-Swizzle-PD-Mode, X-Swizzle-PD-Prefill-Node, X-Swizzle-PD-Decode-Node, X-Swizzle-PD-Transfer-Ms, X-Swizzle-PD-ITL-Jitter")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -410,7 +410,14 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	globalASTDiffEngine.metrics.TotalReusedTokens.Add(uint64(astSummary.ReusedTokens))
 	globalASTDiffEngine.metrics.TotalPrefillTokens.Add(uint64(astSummary.PrefillTokens))
 
-	// 6. Real-Time 3-Tier Billing & Savings Calculation
+	// 6. Swizzle-PD Prefill-Decode Disaggregation Scheduling (Option C)
+	pdPlan := globalPDScheduler.Schedule(spec.ID, totalToks, cachedToks)
+	if pdPlan.IsDisaggregated {
+		workerID = fmt.Sprintf("%s -> %s", pdPlan.PrefillNodeID, pdPlan.DecodeNodeID)
+		ttftMs = pdPlan.TotalTTFTMs
+	}
+
+	// 7. Real-Time 3-Tier Billing & Savings Calculation
 	costUSD, savedUSD := authEngine.RecordBilling(acct, spec, uncachedToks, cachedToks, totalSaved, 48)
 
 	zdrHash := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%d", tenantID, spec.ID, time.Now().UnixNano())))
@@ -436,8 +443,17 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Swizzle-AST-Prefill-Tokens", fmt.Sprintf("%d", astSummary.PrefillTokens))
 	w.Header().Set("X-Swizzle-AST-Reused-Tokens", fmt.Sprintf("%d", astSummary.ReusedTokens))
 	w.Header().Set("X-Swizzle-AST-Diff-Blocks", fmt.Sprintf("%d/%d unchanged", astSummary.UnchangedBlocks, astSummary.TotalBlocks))
+	pdModeStr := "Colocated"
+	if pdPlan.IsDisaggregated {
+		pdModeStr = "Disaggregated (Prefill->Decode)"
+	}
+	w.Header().Set("X-Swizzle-PD-Mode", pdModeStr)
+	w.Header().Set("X-Swizzle-PD-Prefill-Node", pdPlan.PrefillNodeID)
+	w.Header().Set("X-Swizzle-PD-Decode-Node", pdPlan.DecodeNodeID)
+	w.Header().Set("X-Swizzle-PD-Transfer-Ms", fmt.Sprintf("%.2fms", pdPlan.EstTransferTimeMs))
+	w.Header().Set("X-Swizzle-PD-ITL-Jitter", fmt.Sprintf("%.2fms", pdPlan.InterTokenJitterMs))
 
-	// 7. Proxy to Live GPU/TPU Worker via Radix Router (unless disabled for unit tests)
+	// 8. Proxy to Live GPU/TPU Worker via Radix Router (unless disabled for unit tests)
 	upstreamURL := os.Getenv("UPSTREAM_URL")
 	if upstreamURL == "" && selectedWorker != nil {
 		upstreamURL = selectedWorker.EndpointURL
@@ -485,8 +501,8 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	replyText := vault.Restore(fmt.Sprintf(
-		"[Swizzle Roofline Engine — %s]\n• Hardware: %s (Node: %s)\n• TTFT: %d ms (Prefix Cache Hit: %d/%d tokens, %.0f%% cached @ $%.3f/1M)\n• AST-Tree Virtual Paging: %d/%d blocks unchanged (%.1f%% KV reuse | %d prefill tokens)\n• Token Optimizer: %d tokens saved (%.2fx compression) | Secrets Redacted: %d\n• Speculative Decoding: %s (Baseline: %d tok/s | Effective: %d tok/s @ %.2fx speedup)\n• Zero-Data-Retention Attestation: verified ephemeral RAM execution.",
-		spec.ID, spec.Hardware, workerID, ttftMs, cachedToks, totalToks, cacheRatio*100, spec.CachedPricePerM, astSummary.UnchangedBlocks, astSummary.TotalBlocks, astSummary.KVSavingsRatio*100, astSummary.PrefillTokens, totalSaved, compRatioFactor, totalSecretsRedacted, spec.SpeculativeDecoding, spec.OutputTokPerSec, effectiveTPS, effectiveSpeedup,
+		"[Swizzle Roofline Engine — %s]\n• Hardware: %s (Prefill: %s | Decode: %s)\n• TTFT: %d ms (Prefix Cache Hit: %d/%d tokens, %.0f%% cached @ $%.3f/1M)\n• Swizzle-PD Disaggregation: %s (Transfer: %.2fms, ITL Jitter: %.2fms)\n• AST-Tree Virtual Paging: %d/%d blocks unchanged (%.1f%% KV reuse | %d prefill tokens)\n• Token Optimizer: %d tokens saved (%.2fx compression) | Secrets Redacted: %d\n• Speculative Decoding: %s (Baseline: %d tok/s | Effective: %d tok/s @ %.2fx speedup)\n• Zero-Data-Retention Attestation: verified ephemeral RAM execution.",
+		spec.ID, spec.Hardware, pdPlan.PrefillNodeID, pdPlan.DecodeNodeID, ttftMs, cachedToks, totalToks, cacheRatio*100, spec.CachedPricePerM, pdModeStr, pdPlan.EstTransferTimeMs, pdPlan.InterTokenJitterMs, astSummary.UnchangedBlocks, astSummary.TotalBlocks, astSummary.KVSavingsRatio*100, astSummary.PrefillTokens, totalSaved, compRatioFactor, totalSecretsRedacted, spec.SpeculativeDecoding, spec.OutputTokPerSec, effectiveTPS, effectiveSpeedup,
 	))
 	outputToks := 48
 

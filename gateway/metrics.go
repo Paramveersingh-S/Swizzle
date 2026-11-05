@@ -87,6 +87,35 @@ func handlePrometheusMetrics(w http.ResponseWriter, r *http.Request) {
 	sb.WriteString("# TYPE swizzle_ast_tree_kv_savings_ratio gauge\n")
 	sb.WriteString(fmt.Sprintf("swizzle_ast_tree_kv_savings_ratio %.4f\n\n", astRatio))
 
+	pdStats := globalPDScheduler.GetStats()
+	sb.WriteString("# HELP swizzle_pd_requests_scheduled_total Total inference requests processed by Swizzle-PD scheduler\n")
+	sb.WriteString("# TYPE swizzle_pd_requests_scheduled_total counter\n")
+	sb.WriteString(fmt.Sprintf("swizzle_pd_requests_scheduled_total %d\n\n", pdStats.TotalScheduled))
+
+	sb.WriteString("# HELP swizzle_pd_requests_disaggregated_total Requests split across dedicated Prefill and Decode workers\n")
+	sb.WriteString("# TYPE swizzle_pd_requests_disaggregated_total counter\n")
+	sb.WriteString(fmt.Sprintf("swizzle_pd_requests_disaggregated_total %d\n\n", pdStats.TotalDisaggregated))
+
+	sb.WriteString("# HELP swizzle_pd_disaggregated_ratio Ratio of requests disaggregated across distinct P/D nodes\n")
+	sb.WriteString("# TYPE swizzle_pd_disaggregated_ratio gauge\n")
+	sb.WriteString(fmt.Sprintf("swizzle_pd_disaggregated_ratio %.4f\n\n", pdStats.DisaggregatedRatio))
+
+	sb.WriteString("# HELP swizzle_pd_kv_bytes_transferred_total Total bytes of KV activation tensors transferred via RDMA\n")
+	sb.WriteString("# TYPE swizzle_pd_kv_bytes_transferred_total counter\n")
+	sb.WriteString(fmt.Sprintf("swizzle_pd_kv_bytes_transferred_total %d\n\n", pdStats.TotalKVBytesXfer))
+
+	sb.WriteString("# HELP swizzle_pd_mean_transfer_latency_ms Mean transfer latency for KV activation blocks between P and D nodes\n")
+	sb.WriteString("# TYPE swizzle_pd_mean_transfer_latency_ms gauge\n")
+	sb.WriteString(fmt.Sprintf("swizzle_pd_mean_transfer_latency_ms %.2f\n\n", pdStats.MeanTransferTimeMs))
+
+	sb.WriteString("# HELP swizzle_pd_active_prefill_nodes Number of healthy dedicated prefill workers online\n")
+	sb.WriteString("# TYPE swizzle_pd_active_prefill_nodes gauge\n")
+	sb.WriteString(fmt.Sprintf("swizzle_pd_active_prefill_nodes %d\n\n", pdStats.ActivePNodes))
+
+	sb.WriteString("# HELP swizzle_pd_active_decode_nodes Number of healthy dedicated decode workers online\n")
+	sb.WriteString("# TYPE swizzle_pd_active_decode_nodes gauge\n")
+	sb.WriteString(fmt.Sprintf("swizzle_pd_active_decode_nodes %d\n\n", pdStats.ActiveDNodes))
+
 	sb.WriteString("# HELP swizzle_prefix_cache_hit_ratio Ratio of input tokens served from prefix cache (0.0 to 1.0)\n")
 	sb.WriteString("# TYPE swizzle_prefix_cache_hit_ratio gauge\n")
 	sb.WriteString(fmt.Sprintf("swizzle_prefix_cache_hit_ratio %.4f\n\n", hitRatio))

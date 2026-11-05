@@ -325,3 +325,4 @@ func (e *ASTDiffEngine) CanonicalReorder(prevTree, currTree ASTTree) (reorderedP
 
 // Global AST Diff Engine instance
 var globalASTDiffEngine = NewASTDiffEngine()
+
