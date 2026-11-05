@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swizzle-ai"
+version = "0.1.0"
+description = "Official Python SDK for Swizzle: Sub-40ms cached TTFT, speculative decoding, and AST-diff virtual prefix caching."
+readme = "README.md"
+authors = [{ name = "Paramveer Singh", email = "param15.veer.singh@gmail.com" }]
+license = { text = "Apache-2.0" }
+keywords = ["llm", "inference", "speculative-decoding", "prefix-caching", "vllm", "agents", "swizzle"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "httpx>=0.24.0",
+    "pydantic>=2.0.0",
+]
+
+[project.urls]
+Homepage = "https://withswizzle.com"
+Repository = "https://github.com/Paramveersingh-S/Swizzle"
+Documentation = "https://withswizzle.com/agents/quickstart.md"

@@ -1,0 +1,13 @@
+README.md
+pyproject.toml
+swizzle/__init__.py
+swizzle/client.py
+swizzle/completions.py
+swizzle/exceptions.py
+swizzle/types.py
+swizzle_ai.egg-info/PKG-INFO
+swizzle_ai.egg-info/SOURCES.txt
+swizzle_ai.egg-info/dependency_links.txt
+swizzle_ai.egg-info/requires.txt
+swizzle_ai.egg-info/top_level.txt
+tests/test_client.py
