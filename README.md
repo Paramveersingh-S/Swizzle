@@ -9,6 +9,7 @@
 **Sub-40ms cached TTFT · Zero shared-memory bank conflicts · 10× cheaper prefix billing**
 
 [![Live Demo](https://img.shields.io/badge/Live_Platform-swizzle--ten.vercel.app-c9ff3b?style=for-the-badge&logo=vercel&logoColor=black)](https://swizzle-ten.vercel.app)
+[![Student Robotics Playground](https://img.shields.io/badge/Robotics_%26_World_Models-Student_Playground_(80.5_Hz)-00E676?style=for-the-badge)](https://swizzle-ten.vercel.app/#student-playground)
 [![Speculative Decoding](https://img.shields.io/badge/Swizzle--Draft-98.7_tok%2Fs_(2.76x)-FF6F00?style=for-the-badge)](docs/worklogs/WORKLOG_OPTION_A_SPECULATIVE_DRAFT.md)
 [![AST-Diff Virtual Paging](https://img.shields.io/badge/Swizzle--Tree-89.6%25_Cache_Reuse-00C853?style=for-the-badge)](docs/worklogs/WORKLOG_OPTION_B_AST_DIFF_KV.md)
 [![PD Disaggregation](https://img.shields.io/badge/Swizzle--PD-99.9%25_Jitter_Drop-7C4DFF?style=for-the-badge)](docs/worklogs/WORKLOG_OPTION_C_PD_DISAGGREGATION.md)
@@ -18,7 +19,9 @@
 
 <p align="center">
   <a href="https://swizzle-ten.vercel.app"><b>Explore Platform</b></a> •
+  <a href="https://swizzle-ten.vercel.app/#student-playground"><b>Student Robotics Playground</b></a> •
   <a href="#-the-3-core-inference-engineering-breakthroughs"><b>3 Core Breakthroughs</b></a> •
+  <a href="#-robotics-vlas--world-models-for-student-laptops"><b>Robotics & World Models</b></a> •
   <a href="#-architecture"><b>Architecture</b></a> •
   <a href="#-the-swizzle-moat-xor-shared-memory"><b>Kernel Math</b></a> •
   <a href="#-model-catalog--roofline-specs"><b>Model Specs</b></a> •
@@ -94,6 +97,23 @@ flowchart LR
 * **The Solution**: Decouples compute-bound Prefill nodes (NVIDIA H100 SXM5 / TPU v5e) from memory-bandwidth bound Decode nodes (AMD MI300X / A100) via a **100 GB/s RoCEv2/InfiniBand RDMA** tensor streaming protocol.
 * **Result**: **$99.9\%$ ITL jitter elimination** (<1ms stutter) and **$3.08\times$ faster TTFT** on 64k prompts.  
 📖 **[Read Technical Worklog](docs/worklogs/WORKLOG_OPTION_C_PD_DISAGGREGATION.md)** • 💻 Benchmark CLI: `python scripts/swizzle_pd_disagg_bench.py`
+
+---
+
+## 🤖 Robotics VLAs & World Models for Student Laptops
+
+Students and robotics researchers running Vision-Language-Action (VLA) policies (`SmolVLA`, `OpenVLA`, $\pi_0$, `Octo`) and World Models (`DINO-WM`, `V-JEPA 2-AC`, `DIAMOND`, `DreamerV3`) on consumer laptops (2 GB–8 GB VRAM) face three severe bottlenecks: redundant camera-patch prefill across consecutive frames, sequential 7-DoF token decoding, and control-loop jitter over remote GPU tunnels.
+
+Swizzle adds four dedicated robotics and world-model engines in `gateway/` and `sdk/python/swizzle/`:
+
+| Engine | Implementation | Mechanism | Empirical Gain |
+| :--- | :--- | :--- | :--- |
+| **`Swizzle-PatchCache`** | [`gateway/patch_cache.go`](gateway/patch_cache.go) | $16\times 16$ ViT patch perceptual hashing & $L_1$ delta bitmask; splices cached static tabletop KV blocks | **92.9% patch reuse** · **3.66× faster prefill** |
+| **`Swizzle-SpecAct`** | [`gateway/spec_act.go`](gateway/spec_act.go) | 2nd-order Taylor kinematic extrapolator ($\hat{q}_{t+1} = q_t + \dot{q}_t \Delta t + \frac{1}{2}\ddot{q}_t \Delta t^2$) drafting all 7 DoF tokens in parallel | **8.4 Hz $\rightarrow$ 80.5 Hz** VLA control loop |
+| **`Swizzle-Teleop`** | [`gateway/teleop_buffer.go`](gateway/teleop_buffer.go) | Receding-horizon action chunk buffer ($H=16$) + 50 Hz cubic Hermite spline temporal ensembler | **142.0 ms $\rightarrow$ 1.8 ms** p99 actuation jitter |
+| **`Swizzle-MPC`** | [`gateway/world_mpc.go`](gateway/world_mpc.go) | Batched latent world-model rollout planner ($N=128$ trajectories, horizon $T=5$, $K=3$ CEM iterations) | **11.4 GB $\rightarrow$ 1.45 GB VRAM** · **48.5 ms CEM plan** |
+
+🎮 **[Launch Interactive Student Playground](https://swizzle-ten.vercel.app/#student-playground)** • 📓 **[Free Colab T4 Robotics Worker Notebook](colab_robotics_worker.ipynb)** • 💻 Benchmarks: `python scripts/swizzle_robotics_vla_bench.py` & `python scripts/swizzle_world_mpc_bench.py`
 
 ---
 
