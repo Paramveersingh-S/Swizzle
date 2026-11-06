@@ -944,6 +944,113 @@ curl -s https://api.withswizzle.com/v1/chat/completions \\
                     </div>
                   </div>
                 </div>
+
+                {/* 5. Swizzle-PatchCache + SpecAct (Robotics VLA) */}
+                <div className="border border-white/10 bg-[#090d16] rounded-xl p-6 flex flex-col justify-between space-y-4">
+                  <div>
+                    <span className="font-mono text-[11px] text-lime-400 uppercase tracking-wider bg-lime-400/10 border border-lime-400/30 px-2 py-0.5 rounded">
+                      Swizzle-PatchCache + SpecAct · Robotics VLA
+                    </span>
+                    <h3 className="font-mono text-base font-semibold text-white mt-2 mb-1">
+                      92.95% ViT Patch Reuse &amp; 80.5 Hz Closed-Loop Control
+                    </h3>
+                    <p className="text-xs text-slate-400 font-mono leading-relaxed mb-4">
+                      Static desk cameras share &gt;90% identical background patches across 30 FPS frames. Swizzle reuses unchanged ViT patch KV states and drafts 7-DoF action tokens via 2nd-order Taylor kinematics.
+                    </p>
+
+                    <div className="bg-black/60 border border-white/10 rounded-lg p-3.5">
+                      <div className="flex justify-between items-center text-[11px] font-mono mb-2">
+                        <span className="text-slate-300 font-semibold">120-Step Pick-and-Place Trajectory</span>
+                        <span className="text-lime-400 font-bold">5.07× Control Speedup</span>
+                      </div>
+
+                      <svg viewBox="0 0 440 150" className="w-full h-32 overflow-visible">
+                        <line x1="35" y1="20" x2="435" y2="20" stroke="rgba(255,255,255,0.06)"/>
+                        <line x1="35" y1="65" x2="435" y2="65" stroke="rgba(255,255,255,0.06)"/>
+                        <line x1="35" y1="115" x2="435" y2="115" stroke="rgba(255,255,255,0.12)"/>
+
+                        {/* Baseline 63ms */}
+                        <path d="M 35 32 L 435 32" fill="none" stroke="#ef4444" strokeWidth="1.8" strokeDasharray="4 3"/>
+                        <text x="275" y="27" fill="#ef4444" fontFamily="IBM Plex Mono" fontSize="8.5">Standard VLA (63.0ms · 15.9 Hz)</text>
+
+                        {/* Swizzle VLA 12.4ms */}
+                        <path d="M 35 32 L 48 100 L 120 99 L 185 96 L 245 101 L 315 97 L 380 100 L 435 100" fill="none" stroke="#c9ff3b" strokeWidth="2.4"/>
+                        <text x="155" y="88" fill="#c9ff3b" fontFamily="IBM Plex Mono" fontSize="9" fontWeight="bold">Swizzle VLA (12.42ms · 80.5 Hz)</text>
+
+                        <text x="35" y="134" fill="#64748b" fontFamily="IBM Plex Mono" fontSize="9">Step 1</text>
+                        <text x="215" y="134" fill="#64748b" fontFamily="IBM Plex Mono" fontSize="9">Step 60</text>
+                        <text x="395" y="134" fill="#64748b" fontFamily="IBM Plex Mono" fontSize="9">Step 120</text>
+                      </svg>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 font-mono pt-2 border-t border-white/10 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase block">ViT Patch Reuse</span>
+                      <strong className="text-lime-400">92.95% (3.85×)</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase block">SpecAct Accept</span>
+                      <strong className="text-lime-400">99.76% (7-DoF)</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase block">Control Rate</span>
+                      <strong className="text-lime-400">80.5 Hz (12.4ms)</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 6. Swizzle-MPC + Teleop (World Models) */}
+                <div className="border border-white/10 bg-[#090d16] rounded-xl p-6 flex flex-col justify-between space-y-4">
+                  <div>
+                    <span className="font-mono text-[11px] text-lime-400 uppercase tracking-wider bg-lime-400/10 border border-lime-400/30 px-2 py-0.5 rounded">
+                      Swizzle-MPC + Teleop · Latent World Models
+                    </span>
+                    <h3 className="font-mono text-base font-semibold text-white mt-2 mb-1">
+                      128-Trajectory Latent CEM Rollout in 48.5 ms (8.67× Faster)
+                    </h3>
+                    <p className="text-xs text-slate-400 font-mono leading-relaxed mb-4">
+                      Simulating 128 action horizons in pixel space OOMs student laptops. Swizzle batches 128 rollouts in compact DINOv2/JEPA latent space (&le;2.4 GB VRAM) with 50 Hz Hermite teleop smoothing.
+                    </p>
+
+                    <div className="bg-black/60 border border-white/10 rounded-lg p-3.5 space-y-2.5 font-mono text-xs">
+                      <div>
+                        <div className="flex justify-between text-[11px] mb-1">
+                          <span className="text-slate-400">Sequential 128-Rollout CEM</span>
+                          <span className="text-rose-400 font-bold">420.5 ms (2.4 Hz)</span>
+                        </div>
+                        <div className="bg-white/5 h-3.5 rounded overflow-hidden border border-white/10">
+                          <div className="h-full bg-gradient-to-r from-rose-500 to-amber-500 w-full rounded"></div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between text-[11px] mb-1">
+                          <span className="text-white font-semibold">Swizzle-MPC Batched Latent CEM</span>
+                          <span className="text-lime-400 font-bold">48.5 ms (8.67× speedup)</span>
+                        </div>
+                        <div className="bg-white/5 h-3.5 rounded overflow-hidden border border-lime-400/30">
+                          <div className="h-full bg-lime-400 w-[11.5%] min-w-[12px] rounded shadow-[0_0_8px_#c9ff3b]"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 font-mono pt-2 border-t border-white/10 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase block">128-Rollout Time</span>
+                      <strong className="text-lime-400">48.5 ms (8.67×)</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase block">Goal Error Drop</span>
+                      <strong className="text-lime-400">-74.7% (CEM K=3)</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase block">Laptop Footprint</span>
+                      <strong className="text-lime-400">0.80–2.40 GB</strong>
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
 
