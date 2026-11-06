@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swizzle-ai"
-version = "0.1.0"
-description = "Official Python SDK for Swizzle: Sub-40ms cached TTFT, speculative decoding, and AST-diff virtual prefix caching."
+version = "0.2.0"
+description = "Official Python SDK & Student CLI for Swizzle: Sub-40ms LLM TTFT, 60Hz Robotics VLA (PatchCache, SpecAct, Teleop), and Batched Latent World-Model MPC."
 readme = "README.md"
 authors = [{ name = "Paramveer Singh", email = "param15.veer.singh@gmail.com" }]
 license = { text = "Apache-2.0" }
@@ -27,8 +27,11 @@ dependencies = [
     "pydantic>=2.0.0",
 ]
 
+[project.scripts]
+swizzle = "swizzle.cli:main"
+
 [project.urls]
-Homepage = "https://withswizzle.com"
+Homepage = "https://swizzle-ten.vercel.app"
 Repository = "https://github.com/Paramveersingh-S/Swizzle"
-Documentation = "https://withswizzle.com/agents/quickstart.md"
+Documentation = "https://swizzle-ten.vercel.app/agents/quickstart.md"
 

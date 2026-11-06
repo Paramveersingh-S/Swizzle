@@ -101,3 +101,32 @@ def test_world_planner_cem_convergence():
     assert res.planning_speedup > 7.5
     assert res.vram_used_gb <= 1.5
 
+
+def test_student_cli_subcommands(capsys):
+    import json
+    from swizzle.cli import main
+
+    # 1. `swizzle doctor --vram-gb 4.0 --json`
+    rc_doc = main(["doctor", "--vram-gb", "4.0", "--json"])
+    assert rc_doc == 0
+    doc_out = json.loads(capsys.readouterr().out)
+    assert doc_out["recommended_vla"] == "swizzle/smolvla-450m-int8"
+    assert doc_out["recommended_world_model"] == "swizzle/dino-wm-latent"
+
+    # 2. `swizzle bench --steps 12 --json`
+    rc_bench = main(["bench", "--steps", "12", "--json"])
+    assert rc_bench == 0
+    bench_out = json.loads(capsys.readouterr().out)
+    assert bench_out["steps"] == 12
+    assert bench_out["avg_patch_cache_hit_ratio"] > 0.85
+    assert bench_out["world_model_speedup"] > 7.5
+
+    # 3. `swizzle act --instruction "pick up the red cube" --steps 4 --json`
+    rc_act = main(["act", "--instruction", "pick up the red cube", "--steps", "4", "--json"])
+    assert rc_act == 0
+    act_out = json.loads(capsys.readouterr().out)
+    assert len(act_out["steps"]) == 4
+    assert len(act_out["steps"][0]["action_7dof"]) == 7
+    assert len(act_out["steps"][0]["tokens_256bin"]) == 7
+
+

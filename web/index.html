@@ -1429,16 +1429,27 @@ plan = planner.plan(current_latent, goal_latent)</pre>
         <div style="background:rgba(3,9,6,0.9); border:1px solid var(--ld); border-radius:10px; padding:14px">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px">
             <span style="font-family:var(--mono); font-size:11px; color:var(--lime); text-transform:uppercase">
-              Camera RGB-D + 14×14 ViT Patch Grid (Click Canvas to Move Goal)
+              Camera RGB-D + 14×14 ViT Patch Grid (Click Canvas or Use Webcam)
             </span>
-            <div style="display:flex; gap:8px; align-items:center">
-              <label style="font-family:var(--mono); font-size:10.5px; color:var(--md); display:flex; align-items:center; gap:4px; cursor:pointer">
-                <input type="radio" name="pg-click-mode" value="goal" checked style="accent-color:#c9ff3b" /> Click moves Goal
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+              <button type="button" id="pg-webcam-btn" onclick="togglePlaygroundWebcam()" style="font-family:var(--mono); font-size:10.5px; padding:5px 10px; border-radius:5px; border:1px solid rgba(56,189,248,0.55); background:rgba(56,189,248,0.14); color:#38bdf8; font-weight:600; cursor:pointer">
+                📷 Live Laptop Webcam
+              </button>
+              <label style="font-family:var(--mono); font-size:10px; color:var(--md); display:flex; align-items:center; gap:4px" title="Swizzle-PatchCache L1 pixel luminance threshold τ">
+                τ=<span id="pg-tau-val" style="color:var(--lime); font-weight:600">12</span>
+                <input type="range" id="pg-tau-slider" min="4" max="35" value="12" oninput="updateWebcamTau(this.value)" style="width:58px; accent-color:#c9ff3b; cursor:pointer" />
               </label>
               <label style="font-family:var(--mono); font-size:10.5px; color:var(--md); display:flex; align-items:center; gap:4px; cursor:pointer">
-                <input type="radio" name="pg-click-mode" value="cube" style="accent-color:#f87171" /> Click moves Object
+                <input type="radio" name="pg-click-mode" value="goal" checked style="accent-color:#c9ff3b" /> Goal
+              </label>
+              <label style="font-family:var(--mono); font-size:10.5px; color:var(--md); display:flex; align-items:center; gap:4px; cursor:pointer">
+                <input type="radio" name="pg-click-mode" value="cube" style="accent-color:#f87171" /> Object
               </label>
             </div>
+          </div>
+
+          <div id="pg-webcam-status" style="display:none; margin-bottom:8px; padding:7px 10px; border-radius:6px; background:rgba(56,189,248,0.10); border:1px solid rgba(56,189,248,0.35); font-family:var(--mono); font-size:10.5px; color:#bae6fd">
+            ● <strong>LIVE WEBCAM PATCHCACHE ACTIVE:</strong> Wave your hand in front of your camera — changed $14\times 14$ ViT patches ($\Delta_p > \tau$) glow in Swizzle Lime while static background patches hit the KV cache ($0\text{ FLOPs}$), and the 7-DoF arm visually servos to your hand!
           </div>
 
           <!-- Interactive HTML5 Canvas -->
@@ -2669,8 +2680,23 @@ window.addEventListener('DOMContentLoaded', () => {
     teleop: true,
     mpc: true,
     cemSeed: 1,
-    oscHistory: []
+    oscHistory: [],
+    webcamActive: false,
+    webcamReady: false,
+    webcamTau: 12,
+    prevPatchLuma: null
   };
+
+  // Offscreen video & canvas for Live Laptop Webcam 14x14 Swizzle-PatchCache mode
+  const webcamVideo = document.createElement('video');
+  webcamVideo.autoplay = true;
+  webcamVideo.playsInline = true;
+  webcamVideo.muted = true;
+  const webcamOffCanvas = document.createElement('canvas');
+  webcamOffCanvas.width = W;
+  webcamOffCanvas.height = H;
+  const webcamOffCtx = webcamOffCanvas.getContext('2d', { willReadFrequently: true });
+  let webcamStream = null;
 
   const DOF_NAMES = ['Δx', 'Δy', 'Δz', 'Δroll', 'Δpitch', 'Δyaw', 'Grip'];
 
@@ -2772,6 +2798,73 @@ window.addEventListener('DOMContentLoaded', () => {
       y: (state.base.y + state.ee.y) * 0.5 - 38
     };
     const active = new Set();
+
+    // Real-time Live Laptop Webcam 14x14 ViT Patch Luminance Delta Mode
+    if (state.webcamActive && state.webcamReady && webcamVideo.readyState >= 2) {
+      webcamOffCtx.save();
+      webcamOffCtx.translate(W, 0);
+      webcamOffCtx.scale(-1, 1);
+      webcamOffCtx.drawImage(webcamVideo, 0, 0, W, H);
+      webcamOffCtx.restore();
+
+      const imgData = webcamOffCtx.getImageData(0, 0, W, H).data;
+      const currLuma = new Float32Array(GRID_N * GRID_N);
+      let motionSumX = 0;
+      let motionSumY = 0;
+      let motionWeight = 0;
+
+      for (let r = 0; r < GRID_N; r++) {
+        for (let c = 0; c < GRID_N; c++) {
+          const idx = r * GRID_N + c;
+          const x0 = Math.floor(c * cellW);
+          const y0 = Math.floor(r * cellH);
+          const x1 = Math.min(W, Math.floor((c + 1) * cellW));
+          const y1 = Math.min(H, Math.floor((r + 1) * cellH));
+          let sumL = 0;
+          let count = 0;
+          // Subsample 4x4 stride inside each 40x25 patch for 60 FPS zero-lag delta computation
+          for (let py = y0; py < y1; py += 4) {
+            for (let px = x0; px < x1; px += 4) {
+              const p = (py * W + px) * 4;
+              sumL += 0.299 * imgData[p] + 0.587 * imgData[p + 1] + 0.114 * imgData[p + 2];
+              count++;
+            }
+          }
+          const meanL = count > 0 ? (sumL / count) : 0;
+          currLuma[idx] = meanL;
+
+          if (!state.patchCache) {
+            active.add(`${r},${c}`);
+          } else if (state.prevPatchLuma) {
+            const delta = Math.abs(meanL - state.prevPatchLuma[idx]);
+            if (delta > state.webcamTau) {
+              active.add(`${r},${c}`);
+              const cx = (c + 0.5) * cellW;
+              const cy = (r + 0.5) * cellH;
+              motionSumX += cx * delta;
+              motionSumY += cy * delta;
+              motionWeight += delta;
+            }
+          }
+        }
+      }
+      state.prevPatchLuma = currLuma;
+
+      // Visually servo the target object / goal toward the student's moving hand centroid!
+      if (motionWeight > state.webcamTau * 3.5) {
+        const targetX = Math.max(40, Math.min(W - 40, motionSumX / motionWeight));
+        const targetY = Math.max(40, Math.min(H - 45, motionSumY / motionWeight));
+        if (state.carrying) {
+          state.goal.x = state.goal.x * 0.72 + targetX * 0.28;
+          state.goal.y = state.goal.y * 0.72 + targetY * 0.28;
+        } else {
+          state.cube.x = state.cube.x * 0.68 + targetX * 0.32;
+          state.cube.y = state.cube.y * 0.68 + targetY * 0.32;
+        }
+      }
+      return { active, elbow };
+    }
+
     const moveDelta = Math.hypot(state.ee.x - state.prevEe.x, state.ee.y - state.prevEe.y);
 
     for (let r = 0; r < GRID_N; r++) {
@@ -2797,21 +2890,27 @@ window.addEventListener('DOMContentLoaded', () => {
   function drawScene() {
     ctx.clearRect(0, 0, W, H);
 
-    // 1. Background & 14x14 ViT Patch Grid
+    // 1. Background & 14x14 ViT Patch Grid (with live mirrored webcam video when active)
     const { active, elbow } = computeActivePatches();
+    if (state.webcamActive && state.webcamReady) {
+      ctx.save();
+      ctx.globalAlpha = 0.78;
+      ctx.drawImage(webcamOffCanvas, 0, 0, W, H);
+      ctx.restore();
+    }
     for (let r = 0; r < GRID_N; r++) {
       for (let c = 0; c < GRID_N; c++) {
         const isHit = active.has(`${r},${c}`);
         const x = c * cellW;
         const y = r * cellH;
         ctx.fillStyle = isHit
-          ? (state.patchCache ? 'rgba(201, 255, 59, 0.20)' : 'rgba(248, 113, 113, 0.14)')
-          : 'rgba(12, 34, 24, 0.35)';
+          ? (state.patchCache ? 'rgba(201, 255, 59, 0.24)' : 'rgba(248, 113, 113, 0.14)')
+          : (state.webcamActive ? 'rgba(6, 18, 13, 0.42)' : 'rgba(12, 34, 24, 0.35)');
         ctx.fillRect(x, y, cellW, cellH);
         ctx.strokeStyle = isHit
-          ? (state.patchCache ? 'rgba(201, 255, 59, 0.55)' : 'rgba(248, 113, 113, 0.35)')
-          : 'rgba(201, 255, 59, 0.07)';
-        ctx.lineWidth = isHit ? 1.2 : 0.6;
+          ? (state.patchCache ? 'rgba(201, 255, 59, 0.68)' : 'rgba(248, 113, 113, 0.35)')
+          : 'rgba(201, 255, 59, 0.09)';
+        ctx.lineWidth = isHit ? 1.3 : 0.6;
         ctx.strokeRect(x + 0.5, y + 0.5, cellW - 1, cellH - 1);
       }
     }
@@ -2935,14 +3034,17 @@ window.addEventListener('DOMContentLoaded', () => {
     const activeCount = active.size;
     const reusedCount = 196 - activeCount;
     const reusePct = ((reusedCount / 196) * 100).toFixed(1);
-    ctx.fillStyle = 'rgba(4, 12, 8, 0.82)';
-    ctx.fillRect(10, 10, 275, 44);
-    ctx.strokeStyle = 'rgba(201, 255, 59, 0.35)';
-    ctx.strokeRect(10, 10, 275, 44);
-    ctx.fillStyle = '#c9ff3b';
+    ctx.fillStyle = 'rgba(4, 12, 8, 0.84)';
+    ctx.fillRect(10, 10, 310, 44);
+    ctx.strokeStyle = state.webcamActive ? 'rgba(56, 189, 248, 0.55)' : 'rgba(201, 255, 59, 0.35)';
+    ctx.strokeRect(10, 10, 310, 44);
+    ctx.fillStyle = state.webcamActive ? '#38bdf8' : '#c9ff3b';
     ctx.font = 'bold 11px monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(`FRAME #${state.frame} · ${state.carrying ? 'TRANSPORTING TO GOAL' : 'REACHING TARGET'}`, 18, 27);
+    const hudMode = state.webcamActive
+      ? `LIVE WEBCAM (τ=${state.webcamTau}) · HAND SERVO`
+      : `FRAME #${state.frame} · ${state.carrying ? 'TRANSPORTING TO GOAL' : 'REACHING TARGET'}`;
+    ctx.fillText(hudMode, 18, 27);
     ctx.fillStyle = '#e2e8f0';
     ctx.font = '10.5px monospace';
     ctx.fillText(`ViT Patches Reused: ${reusedCount}/196 (${reusePct}%)`, 18, 44);
@@ -3127,6 +3229,76 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     drawScene();
     drawOscilloscope();
+  };
+
+  window.updateWebcamTau = function(val) {
+    const num = parseInt(val, 10) || 12;
+    state.webcamTau = num;
+    const label = document.getElementById('pg-tau-val');
+    if (label) label.textContent = String(num);
+    drawScene();
+  };
+
+  window.togglePlaygroundWebcam = async function() {
+    const btn = document.getElementById('pg-webcam-btn');
+    const banner = document.getElementById('pg-webcam-status');
+    if (state.webcamActive) {
+      state.webcamActive = false;
+      state.webcamReady = false;
+      state.prevPatchLuma = null;
+      if (webcamStream) {
+        webcamStream.getTracks().forEach(t => t.stop());
+        webcamStream = null;
+      }
+      if (btn) {
+        btn.textContent = '📷 Live Laptop Webcam';
+        btn.style.background = 'rgba(56,189,248,0.14)';
+        btn.style.color = '#38bdf8';
+      }
+      if (banner) banner.style.display = 'none';
+      drawScene();
+      return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      if (banner) {
+        banner.style.display = 'block';
+        banner.innerHTML = '⚠️ <strong>navigator.mediaDevices.getUserMedia</strong> is unavailable in this browser context. Using interactive tabletop simulation.';
+      }
+      return;
+    }
+
+    try {
+      if (btn) btn.textContent = '⏳ Starting Webcam...';
+      webcamStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 560 }, height: { ideal: 360 }, facingMode: 'user' },
+        audio: false
+      });
+      webcamVideo.srcObject = webcamStream;
+      await webcamVideo.play();
+      state.webcamActive = true;
+      state.webcamReady = true;
+      state.prevPatchLuma = null;
+      if (btn) {
+        btn.textContent = '⏹ Stop Live Webcam';
+        btn.style.background = '#38bdf8';
+        btn.style.color = '#06120d';
+      }
+      if (banner) banner.style.display = 'block';
+      drawScene();
+    } catch (err) {
+      state.webcamActive = false;
+      state.webcamReady = false;
+      if (btn) {
+        btn.textContent = '📷 Live Laptop Webcam';
+        btn.style.background = 'rgba(56,189,248,0.14)';
+        btn.style.color = '#38bdf8';
+      }
+      if (banner) {
+        banner.style.display = 'block';
+        banner.innerHTML = `⚠️ Camera permission declined or no webcam found (${err.message || 'getUserMedia error'}). Click/drag canvas to move Goal/Object interactively.`;
+      }
+    }
   };
 
   window.triggerWorldMPCPlan = function() {
