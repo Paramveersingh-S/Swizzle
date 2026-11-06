@@ -1,0 +1,34 @@
+{
+  "object": "worker_pool",
+  "routing": "Content-Addressed Radix-Tree Longest-Prefix Match (HMAC-SHA256 Tenant Isolated)",
+  "workers": [
+    {
+      "id": "a100-sxm4-colab-01",
+      "hardware": "NVIDIA A100-SXM4-40GB (CUDA XOR-Swizzled PagedAttention)",
+      "region": "global-edge-cf",
+      "healthy": true,
+      "kv_cache_usage_pct": 18.4,
+      "supported_models": [
+        "Qwen/Qwen2.5-Coder-7B-Instruct",
+        "swizzle/qwen3.6-35b-a3b-fp8",
+        "swizzle/gemma-4-31b-it",
+        "swizzle/deepseek-v4.1-flash-1017",
+        "swizzle/deepseek-v4.1-flash-abliterated"
+      ]
+    },
+    {
+      "id": "edge-robotics-pool-01",
+      "hardware": "Student Laptop 2-8GB GPU + Colab Free T4 Elastic Pool",
+      "region": "edge-local-teleop",
+      "healthy": true,
+      "kv_cache_usage_pct": 12.0,
+      "supported_models": [
+        "swizzle/smolvla-450m-int8",
+        "swizzle/pi0-fast-int4",
+        "swizzle/openvla-7b-int4",
+        "swizzle/dino-wm-latent",
+        "swizzle/vjepa2-ac-int4"
+      ]
+    }
+  ]
+}

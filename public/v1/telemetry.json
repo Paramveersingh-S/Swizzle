@@ -1,0 +1,10 @@
+{
+  "status": "healthy",
+  "protocol": "HTTP/2 + QUIC Keep-Alive (300s)",
+  "mesh_architecture": "3-Tier Elastic Worker Mesh (Student Edge + Colab Swarm + Serverless Burst)",
+  "active_endpoints": 10,
+  "prefix_cache_hit_pct": 89.6,
+  "vit_patch_reuse_pct": 92.9,
+  "speculative_accept_rate": 0.905,
+  "kv_store_backend": "Valkey Atomic Prefix Ledger + LMCache NIXL + Swizzle-PatchCache"
+}

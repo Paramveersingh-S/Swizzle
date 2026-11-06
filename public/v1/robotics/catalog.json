@@ -1,0 +1,29 @@
+{
+  "object": "robotics_catalog",
+  "tiers": [
+    {
+      "vram_gb": 2,
+      "vla": "swizzle/octo-small-fp16",
+      "world_model": "swizzle/dreamerv3-rssm",
+      "control_hz": 65.0
+    },
+    {
+      "vram_gb": 4,
+      "vla": "swizzle/smolvla-450m-int8",
+      "world_model": "swizzle/dino-wm-latent",
+      "control_hz": 80.5
+    },
+    {
+      "vram_gb": 8,
+      "vla": "swizzle/pi0-fast-int4",
+      "world_model": "swizzle/vjepa2-ac-int4",
+      "control_hz": 74.2
+    },
+    {
+      "vram_gb": 16,
+      "vla": "swizzle/openvla-7b-int4",
+      "world_model": "swizzle/vjepa2-ac-int4",
+      "control_hz": 80.5
+    }
+  ]
+}

@@ -13,8 +13,20 @@
       "destination": "/colab_robotics_worker.ipynb"
     },
     {
-      "source": "/v1/:path*",
-      "destination": "/api/v1?path=:path*"
+      "source": "/v1/models",
+      "destination": "/v1/models.json"
+    },
+    {
+      "source": "/v1/telemetry",
+      "destination": "/v1/telemetry.json"
+    },
+    {
+      "source": "/v1/workers",
+      "destination": "/v1/workers.json"
+    },
+    {
+      "source": "/v1/robotics/catalog",
+      "destination": "/v1/robotics/catalog.json"
     }
   ]
 }
