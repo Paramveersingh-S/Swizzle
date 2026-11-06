@@ -150,3 +150,4 @@ func handleWorldPlan(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Swizzle-VRAM-GB", fmt.Sprintf("%.2f", resp.VRAMUsedGB))
 	_ = json.NewEncoder(w).Encode(resp)
 }
+

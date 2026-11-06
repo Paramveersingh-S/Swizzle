@@ -161,3 +161,4 @@ class WorldPlanner:
             planning_speedup=round(speedup, 2),
             vram_used_gb=vram,
         )
+

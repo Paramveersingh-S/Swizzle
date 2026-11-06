@@ -43,3 +43,4 @@ func TestSpecActEngine_KinematicExtrapolation(t *testing.T) {
 		t.Fatalf("expected >= 2.5x action decoding speedup, got %.2fx", last.ActionDecodingSpeedup)
 	}
 }
+

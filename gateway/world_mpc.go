@@ -338,3 +338,4 @@ func RecommendModelsForStudentVRAM(vramGB float64, includeColabTunnel bool) []Ro
 	}
 	return out
 }
+

@@ -9,6 +9,10 @@
       "destination": "/agents/quickstart.md"
     },
     {
+      "source": "/colab_robotics_worker.ipynb",
+      "destination": "/colab_robotics_worker.ipynb"
+    },
+    {
       "source": "/v1/:path*",
       "destination": "https://employers-willow-integrate-penetration.trycloudflare.com/v1/:path*"
     }

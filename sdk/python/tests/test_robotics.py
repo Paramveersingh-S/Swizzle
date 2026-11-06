@@ -100,3 +100,4 @@ def test_world_planner_cem_convergence():
     assert res.final_predicted_distance < res.initial_latent_distance
     assert res.planning_speedup > 7.5
     assert res.vram_used_gb <= 1.5
+

@@ -45,3 +45,4 @@ func TestPatchCacheEngine_SpatioTemporalReuse(t *testing.T) {
 		t.Fatalf("expected >3.5x prefill speedup, got %.2fx", m2.EstimatedPrefillSpeedup)
 	}
 }
+

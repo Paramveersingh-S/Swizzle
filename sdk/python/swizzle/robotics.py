@@ -397,3 +397,4 @@ class VLAPolicy:
             end_to_end_ms=round(total_ms, 2),
             effective_hz=round(effective_hz, 1),
         )
+

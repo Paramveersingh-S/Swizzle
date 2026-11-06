@@ -741,3 +741,4 @@ def patch_html(path: Path) -> None:
 if __name__ == "__main__":
     for target in TARGETS:
         patch_html(target)
+
