@@ -9,6 +9,7 @@ from swizzle import (
     TemporalActionEnsembler,
     VLAPolicy,
     WorldPlanner,
+    extract_patch_intensities_from_frame,
     quantize_action_to_token,
     dequantize_token_to_action,
 )
@@ -128,5 +129,27 @@ def test_student_cli_subcommands(capsys):
     assert len(act_out["steps"]) == 4
     assert len(act_out["steps"][0]["action_7dof"]) == 7
     assert len(act_out["steps"][0]["tokens_256bin"]) == 7
+
+
+def test_webcam_frame_ingestion():
+    import numpy as np
+
+    # Simulate 480x640x3 OpenCV camera frame
+    webcam_frame = np.full((480, 640, 3), 120, dtype=np.uint8)
+    # Simulate a moving object across 100x100 pixels
+    webcam_frame[150:250, 200:300] = 250
+
+    patches = extract_patch_intensities_from_frame(webcam_frame, grid_size=14)
+    assert len(patches) == 196
+    assert any(p > 0.8 for p in patches)
+    assert any(p < 0.6 for p in patches)
+
+    policy = VLAPolicy(grid_size=14)
+    # Feed raw frame directly to policy.act()
+    out = policy.act(webcam_frame, instruction="track moving object")
+    assert len(out.action) == 7
+    assert out.patch_cache.total_patches == 196
+    assert out.effective_hz > 20.0
+
 
 

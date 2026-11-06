@@ -28,3 +28,4 @@ Decouples local 50 Hz robot actuation from asynchronous inference via exponentia
 
 ### D. `Swizzle-MPC` (`gateway/world_mpc.go`)
 Batches $N=128$ candidate action sequences over horizon $T=5$ in compact patch-latent space ($z_t \in \mathbb{R}^{196 \times d}$) across $K=3$ Cross-Entropy Method (CEM) iterations, achieving **48.5 ms** planning latency (**8.66× speedup**) in **1.45 GB VRAM** (vs. 11.4 GB for pixel-diffusion world models).
+

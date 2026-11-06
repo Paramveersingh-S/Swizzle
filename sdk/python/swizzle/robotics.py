@@ -17,7 +17,7 @@ import math
 import platform
 import subprocess
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 
 ACTION_VOCAB_BASE_TOKEN = 31744
@@ -116,6 +116,75 @@ def dequantize_token_to_action(token_id: int) -> float:
     bin_idx = max(0, min(ACTION_VOCAB_BINS - 1, int(token_id) - ACTION_VOCAB_BASE_TOKEN))
     val = (bin_idx / float(ACTION_VOCAB_BINS - 1)) * 2.0 - 1.0
     return round(val, 4)
+
+
+def extract_patch_intensities_from_frame(
+    frame: Any,
+    grid_size: int = 14,
+) -> List[float]:
+    """
+    Extracts normalized [0.0, 1.0] patch intensities from a camera / webcam frame.
+    Supports:
+    - 1D sequence of float patch intensities (returned as-is)
+    - numpy ndarray (e.g. cv2.VideoCapture frames, shape (H, W, 3) BGR/RGB or (H, W))
+    - PIL.Image.Image
+    - 2D list of pixel rows
+    """
+    if isinstance(frame, (list, tuple)) and frame and isinstance(frame[0], (int, float)):
+        if len(frame) == grid_size * grid_size:
+            return [float(x) for x in frame]
+        intensities = [float(x) for x in frame]
+        if len(intensities) < grid_size * grid_size:
+            intensities.extend([0.0] * (grid_size * grid_size - len(intensities)))
+        return intensities[: grid_size * grid_size]
+
+    if hasattr(frame, "convert") and hasattr(frame, "size"):
+        gray_img = frame.convert("L").resize((grid_size, grid_size))
+        pixels = list(gray_img.getdata())
+        return [round(p / 255.0, 4) for p in pixels]
+
+    if hasattr(frame, "shape") and hasattr(frame, "ndim"):
+        try:
+            import cv2
+            if frame.ndim == 3:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            elif frame.ndim == 2:
+                gray = frame
+            else:
+                gray = frame.squeeze()
+            resized = cv2.resize(gray, (grid_size, grid_size), interpolation=cv2.INTER_AREA)
+            val = resized.astype(float)
+            if val.max() > 1.0:
+                val = val / 255.0
+            return [round(float(x), 4) for x in val.flatten()]
+        except Exception:
+            pass
+
+        try:
+            import numpy as np
+            arr = np.asarray(frame)
+            if arr.ndim == 3:
+                gray = 0.299 * arr[:, :, 0] + 0.587 * arr[:, :, 1] + 0.114 * arr[:, :, 2]
+            elif arr.ndim == 2:
+                gray = arr.astype(float)
+            else:
+                gray = arr.squeeze().astype(float)
+
+            H, W = gray.shape
+            ch, cw = max(1, H // grid_size), max(1, W // grid_size)
+            cropped = gray[: ch * grid_size, : cw * grid_size]
+            reshaped = cropped.reshape(grid_size, ch, grid_size, cw).mean(axis=(1, 3))
+            max_v = float(np.max(reshaped))
+            if max_v > 1.0:
+                reshaped = reshaped / 255.0
+            return [round(float(x), 4) for x in reshaped.flatten()]
+        except Exception:
+            pass
+
+    raise TypeError(
+        f"Cannot extract {grid_size}x{grid_size} patch intensities from frame of type {type(frame)}. "
+        "Provide a numpy ndarray (cv2.VideoCapture frame), PIL Image, or Sequence[float]."
+    )
 
 
 @dataclass
@@ -346,13 +415,23 @@ class VLAPolicy:
 
     def act(
         self,
-        patch_intensities: Sequence[float],
+        frame_or_patches: Union[Sequence[float], Any],
         instruction: str = "pick up the target object",
         target_action_hint: Optional[Sequence[float]] = None,
     ) -> VLAActionOutput:
         self.step_count += 1
 
-        patch_decision = self._patch_filter.evaluate(patch_intensities)
+        if not (
+            isinstance(frame_or_patches, (list, tuple))
+            and frame_or_patches
+            and isinstance(frame_or_patches[0], (int, float))
+            and len(frame_or_patches) == self.grid_size * self.grid_size
+        ):
+            patches = extract_patch_intensities_from_frame(frame_or_patches, grid_size=self.grid_size)
+        else:
+            patches = frame_or_patches
+
+        patch_decision = self._patch_filter.evaluate(patches)
         if not self.enable_patch_cache:
             patch_decision.swizzle_prefill_ms = patch_decision.baseline_prefill_ms
             patch_decision.prefill_speedup = 1.0

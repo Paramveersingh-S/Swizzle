@@ -15,6 +15,7 @@ from .robotics import (
     TemporalActionEnsembler,
     VLAPolicy,
     VLAActionOutput,
+    extract_patch_intensities_from_frame,
     quantize_action_to_token,
     dequantize_token_to_action,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "TemporalActionEnsembler",
     "VLAPolicy",
     "VLAActionOutput",
+    "extract_patch_intensities_from_frame",
     "WorldPlanner",
     "WorldPlanResult",
     "quantize_action_to_token",
