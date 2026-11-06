@@ -78,15 +78,37 @@ func (r *RadixPrefixRouter) seedDefaultWorkers() {
 			workerID = "gpu-worker-0" + string(rune('1'+i))
 		}
 		r.workers[workerID] = &WorkerNode{
-			ID:              workerID,
-			EndpointURL:     strings.TrimRight(u, "/"),
-			Hardware:        "NVIDIA A100-SXM4-40GB (CUDA XOR-Swizzled PagedAttention)",
-			Region:          "global-edge-cf",
-			SupportedModels: []string{"Qwen/Qwen2.5-Coder-7B-Instruct", "swizzle/qwen3.6-35b-a3b-fp8"},
+			ID:          workerID,
+			EndpointURL: strings.TrimRight(u, "/"),
+			Hardware:    "NVIDIA A100-SXM4-40GB (CUDA XOR-Swizzled PagedAttention)",
+			Region:      "global-edge-cf",
+			SupportedModels: []string{
+				"Qwen/Qwen2.5-Coder-7B-Instruct",
+				"swizzle/qwen3.6-35b-a3b-fp8",
+				"swizzle/gemma-4-31b-it",
+				"swizzle/deepseek-v4.1-flash-1017",
+				"swizzle/deepseek-v4.1-flash-abliterated",
+			},
 			Healthy:         true,
 			KVCacheUsagePct: 18.4,
 			LastHeartbeat:   time.Now().UTC(),
 		}
+	}
+	r.workers["edge-robotics-pool-01"] = &WorkerNode{
+		ID:          "edge-robotics-pool-01",
+		EndpointURL: "local://swizzle-robotics-edge",
+		Hardware:    "Student Laptop 2-8GB GPU + Colab Free T4 Elastic Pool",
+		Region:      "edge-local-teleop",
+		SupportedModels: []string{
+			"swizzle/smolvla-450m-int8",
+			"swizzle/pi0-fast-int4",
+			"swizzle/openvla-7b-int4",
+			"swizzle/dino-wm-latent",
+			"swizzle/vjepa2-ac-int4",
+		},
+		Healthy:         true,
+		KVCacheUsagePct: 12.0,
+		LastHeartbeat:   time.Now().UTC(),
 	}
 }
 
