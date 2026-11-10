@@ -27,6 +27,10 @@
     {
       "source": "/v1/robotics/catalog",
       "destination": "/v1/robotics/catalog.json"
+    },
+    {
+      "source": "/v1/:path*",
+      "destination": "/api/v1"
     }
   ]
 }

@@ -89,3 +89,4 @@ class LlamaForCausalLM:
                 probs = probs / np.sum(probs)
 
         return int(np.random.choice(len(probs), p=probs))
+

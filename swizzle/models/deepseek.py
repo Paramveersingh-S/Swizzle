@@ -68,3 +68,4 @@ class DeepSeekV3ForCausalLM:
         exp_l = np.exp(logits_arr - np.max(logits_arr))
         probs = exp_l / np.sum(exp_l)
         return int(np.argmax(probs))
+

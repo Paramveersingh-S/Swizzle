@@ -48,3 +48,4 @@ def test_llm_engine_end_to_end_generation():
     engine_stats = engine.get_engine_stats()
     assert engine_stats["step_counter"] > 0
     assert engine_stats["unfinished_requests"] == 0
+

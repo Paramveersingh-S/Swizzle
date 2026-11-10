@@ -23,3 +23,4 @@ def test_disagg_coordinator_transfer():
     stats = coord.get_stats()
     assert stats["total_transfers"] == 1
     assert stats["rdma_bandwidth_gbps"] == 100.0
+

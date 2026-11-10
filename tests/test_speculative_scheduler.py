@@ -41,3 +41,4 @@ def test_speculative_verification_and_commit():
     stats = spec.get_stats()
     assert stats["total_accepted"] == 1
     assert stats["acceptance_rate"] > 0.0
+

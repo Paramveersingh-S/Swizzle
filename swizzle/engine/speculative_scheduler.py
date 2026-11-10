@@ -145,3 +145,4 @@ class SpeculativeScheduler:
             "acceptance_rate": acceptance_rate,
             "speculative_speedup": round(effective_speedup, 2),
         }
+

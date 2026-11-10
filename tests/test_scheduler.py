@@ -83,3 +83,4 @@ def test_scheduler_abort_request():
     assert aborted is True
     assert bm.num_free_blocks == 32  # Block reclaimed!
     assert not sched.has_unfinished_requests()
+

@@ -65,7 +65,7 @@ class BlockManager:
     def _hash_tokens(self, prev_hash: str, token_chunk: List[int]) -> str:
         h = hashlib.sha256()
         h.update(prev_hash.encode("utf-8"))
-        h.update(bytes(token_chunk))
+        h.update(",".join(map(str, token_chunk)).encode("ascii"))
         return h.hexdigest()[:16]
 
     def can_allocate(self, seq: Sequence) -> bool:

@@ -113,3 +113,4 @@ class SequenceGroup:
 
     def get_max_len(self) -> int:
         return max(seq.get_len() for seq in self.seqs)
+
