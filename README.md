@@ -148,6 +148,83 @@ flowchart TD
 ```
 
 ### Response Telemetry Headers
+
+---
+
+## ⚙️ Continuous Batching Engine Architecture
+
+Swizzle provides an industrial-grade continuous batching runtime engine designed for low-latency agentic loops and massive context reuse:
+
+```mermaid
+flowchart TD
+    subgraph Ingress["Incoming Request Stream"]
+        R1["User Request 1<br/>Prompt P1, max_tokens=128"]
+        R2["User Request 2<br/>AST Diff Metadata"]
+    end
+
+    subgraph CoreEngine["Swizzle Continuous Batching Engine (swizzle/engine)"]
+        direction TB
+        Scheduler["Scheduler (Iteration-Level Continuous Batching)<br/>• Priority Queues: WAITING, RUNNING, SWAPPED<br/>• Chunked Prefill Budget Allocation<br/>• Dynamic Preemption on Memory Pressure"]
+        
+        subgraph Memory["Memory Management Plane"]
+            BM["BlockManager (Paged KV Cache)<br/>• Physical Block Pool (16/32-token blocks)<br/>• Content-Addressed Prefix Caching<br/>• Swizzle-Tree In-Place AST Diff Remapping<br/>• Copy-On-Write (COW) Forking"]
+        end
+
+        subgraph SpecEngine["Speculative Execution Plane"]
+            SpecSched["SpeculativeScheduler<br/>• Prompt-Trie N-gram Lookahead (γ=4)<br/>• Swizzle Spec Verify Mega-Kernel<br/>• Parallel Candidate Verification & Rollback"]
+        end
+
+        subgraph Disagg["PD Disaggregation Coordinator"]
+            DisaggCoord["DisaggCoordinator<br/>• 100 GB/s RoCEv2/InfiniBand RDMA<br/>• Prefill Node to Decode Node KV Streaming"]
+        end
+
+        subgraph Models["Model Execution Layer"]
+            M1["Llama 3 Runner"]
+            M2["Qwen 2.5 Coder Runner"]
+            M3["DeepSeek V2/V3 MoE Runner"]
+        end
+
+        Scheduler --> BM
+        Scheduler --> SpecSched
+        Scheduler --> Disagg
+        Scheduler --> Models
+    end
+
+    Ingress --> Scheduler
+```
+
+### Python Continuous Batching Engine API
+
+```python
+from swizzle.engine import LLMEngine, SamplingParams
+
+# 1. Initialize Continuous Batching Engine with Paged Cache and Speculative Draft
+engine = LLMEngine(
+    model_name="Qwen/Qwen2.5-Coder-7B-Instruct",
+    num_blocks=2048,
+    block_size=16,
+    enable_speculative=True,
+    enable_prefix_cache=True,
+)
+
+# 2. Enqueue asynchronous agent requests with AST diff metadata
+engine.add_request(
+    request_id="req-code-refactor",
+    prompt_tokens=[15, 28, 99, 1024, 882],
+    sampling_params=SamplingParams(max_tokens=64, temperature=0.2),
+    ast_metadata={"ast_diff_map": {3: 1}}  # In-place AST block remapping!
+)
+
+# 3. Step through iteration-level execution loop
+while engine.has_unfinished_requests():
+    step_outputs = engine.step()
+    for output in step_outputs:
+        if output.finished:
+            print(f"[{output.request_id}] Generated {len(output.output_tokens)} tokens")
+            print(f"TTFT: {output.telemetry['ttft_ms']} ms | Speedup: {output.telemetry['speculative_speedup']}x")
+```
+
+---
 Every response from Swizzle includes cryptographic hardware verification headers:
 * `X-Swizzle-TTFT-Ms`: Exact time in milliseconds to generate the first output delta.
 * `X-Swizzle-Cache-Hit-Tokens`: Number of input tokens served directly from the KV cache.
@@ -283,6 +360,18 @@ Swizzle/
 ├── package.json               # Static build and packaging pipeline
 ├── Dockerfile                 # Multi-stage <15MB hardened Go container build
 ├── colab_worker.ipynb         # Colab Pro A100 GPU worker (Prefix Cache + PLD + Named Tunnel)
+├── swizzle/                   # Swizzle Continuous Batching Engine Runtime
+│   ├── engine/
+│   │   ├── scheduler.py       # Iteration-level continuous batching scheduler
+│   │   ├── block_manager.py   # Paged KV cache & AST-diff virtual block remapper
+│   │   ├── speculative_scheduler.py # Fused speculative draft & verify coordinator
+│   │   ├── disagg_coordinator.py    # 100 GB/s RoCEv2/InfiniBand PD coordinator
+│   │   └── llm_engine.py      # High-level continuous batching LLMEngine
+│   └── models/
+│       ├── llama.py           # Llama 3 causal LM runner with XOR attention interface
+│       ├── qwen2_5_coder.py   # Qwen 2.5 Coder architecture runner
+│       └── deepseek.py        # DeepSeek V2/V3 MoE Top-2 router & expert dispatch
+├── tests/                     # Core Engine Unit Test Suite (11 passing tests)
 ├── docs/                      # Technical Documentation & Published Engineering Worklogs
 │   └── worklogs/
 │       ├── WORKLOG_OPTION_A_SPECULATIVE_DRAFT.md # Swizzle-Draft Speculative Engine (98.7 tok/s)
