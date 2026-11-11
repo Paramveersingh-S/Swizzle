@@ -1,0 +1,27 @@
+{
+  "llm": {
+    "engine": "LLM Serving (Continuous Batching)",
+    "cold_latency_ms": 755.27,
+    "warm_latency_ms": 699.19,
+    "latency_reduction_pct": 7.4,
+    "speedup": "1.08x",
+    "prefix_blocks_reused": 32,
+    "ast_cache_reuse_pct": "89.6%"
+  },
+  "robotics": {
+    "engine": "Robotics VLA (Vision-Language-Action)",
+    "baseline_prefill_ms": 42.0,
+    "swizzle_prefill_ms": 9.04,
+    "baseline_control_hz": 23.8,
+    "swizzle_control_hz": 110.6,
+    "static_patch_reuse_pct": "92.9%",
+    "speedup": "4.65x"
+  },
+  "kernel": {
+    "engine": "Hardware PagedAttention Kernel (CUDA sm_80/89/90)",
+    "naive_shared_memory_bank_conflicts": 1024,
+    "swizzle_xor_bank_conflicts": 0,
+    "conflict_elimination": "100.0% (Zero Bank Serialization)",
+    "bandwidth_efficiency": "94.2% of Roofline SRAM BW"
+  }
+}

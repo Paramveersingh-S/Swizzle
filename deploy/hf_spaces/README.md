@@ -22,3 +22,4 @@ Always-on, serverless inference worker for the **Swizzle-AI** ecosystem (`https:
 ## Connect to Vercel
 In your Vercel Project Settings for `swizzle-ten`:
 - **`SWIZZLE_UPSTREAM_URL`** = `https://<YOUR_HF_USERNAME>-<SPACE_NAME>.hf.space`
+

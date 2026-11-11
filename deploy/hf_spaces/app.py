@@ -229,3 +229,4 @@ async def chat_completions(req: ChatCompletionRequest):
             "total_tokens": (len(prompt) + len(reply_text)) // 4,
         },
     }
+
