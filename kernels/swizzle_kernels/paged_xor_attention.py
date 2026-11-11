@@ -58,3 +58,4 @@ def swizzle_smem_index(row: int, col: int, tile_cols: int = 64) -> int:
     """Mathematical bitwise XOR permutation eliminating 32-way SRAM bank conflicts."""
     swizzled_col = col ^ (row >> 2)
     return (row * tile_cols) + swizzled_col
+

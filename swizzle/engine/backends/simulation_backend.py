@@ -49,3 +49,4 @@ class SimulationBackend(BaseModelBackend):
     def detokenize(self, token_ids: List[int]) -> str:
         byte_vals = bytes([max(0, min(255, int(t) - 1)) for t in token_ids])
         return byte_vals.decode("utf-8", errors="replace")
+

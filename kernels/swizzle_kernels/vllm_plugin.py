@@ -30,3 +30,4 @@ def register():
     except Exception as e:
         logger.warning("[Swizzle-Kernels] Failed to register with vLLM: %s", e)
         return False
+

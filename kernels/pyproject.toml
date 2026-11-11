@@ -28,3 +28,4 @@ swizzle_attn = "swizzle_kernels.vllm_plugin:register"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["swizzle_kernels*"]
+

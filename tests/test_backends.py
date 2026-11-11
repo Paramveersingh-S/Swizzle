@@ -73,3 +73,4 @@ def test_swizzle_tokenizer_encode_decode():
     assert len(encoded) > 0
     decoded = tok.decode(encoded)
     assert "swizzle_gemm" in decoded
+

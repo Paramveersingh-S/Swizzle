@@ -66,3 +66,4 @@ class LlamaCppBackend(BaseModelBackend):
     def detokenize(self, token_ids: List[int]) -> str:
         self._ensure_loaded()
         return self._llm.detokenize(token_ids).decode("utf-8", errors="replace")
+

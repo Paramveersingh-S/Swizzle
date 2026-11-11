@@ -73,3 +73,4 @@ def test_lerobot_policy_wrapper_interface():
 def test_factory_get_lerobot_policy():
     policy = get_policy("lerobot/act_aloha_sim_transfer_cube")
     assert isinstance(policy, LeRobotPolicyWrapper)
+

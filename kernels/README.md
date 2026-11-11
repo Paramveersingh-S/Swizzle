@@ -12,3 +12,4 @@ Install as a vLLM plugin:
 pip install swizzle-kernels
 ```
 vLLM will automatically discover the entry point via `[project.entry-points."vllm.general_plugins"]`.
+

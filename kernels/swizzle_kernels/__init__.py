@@ -12,3 +12,4 @@ __all__ = [
     "swizzle_smem_index",
     "register",
 ]
+

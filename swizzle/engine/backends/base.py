@@ -78,3 +78,4 @@ class BaseModelBackend(ABC):
     def vocab_size(self) -> int:
         """Returns the vocabulary size of the model."""
         pass
+

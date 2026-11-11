@@ -63,3 +63,4 @@ def test_paged_xor_attention_forward():
 def test_vllm_plugin_register():
     success = register()
     assert success is True
+

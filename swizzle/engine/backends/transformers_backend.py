@@ -97,3 +97,4 @@ class TransformersBackend(BaseModelBackend):
 
     def detokenize(self, token_ids: List[int]) -> str:
         return self.tokenizer.decode(token_ids, skip_special_tokens=True)
+
