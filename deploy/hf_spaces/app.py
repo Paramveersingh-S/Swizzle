@@ -230,8 +230,8 @@ async def chat_completions(req: Request):
     )
 
 
-# Standard Gradio entrypoint
-app = demo.app
+# Standard Gradio entrypoint with mounted API routes
+app = gr.mount_gradio_app(demo.app, demo, path="/")
 
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0", server_port=7860)
