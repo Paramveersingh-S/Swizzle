@@ -5,7 +5,7 @@ Ties together iteration-level scheduling, paged KV block memory management with
 AST-diff virtual remapping, speculative draft verification, and prefill-decode disaggregation.
 """
 
-from typing import List, Dict, Optional, Tuple, Set, Any
+from typing import List, Dict, Optional, Tuple, Set, Any, Union
 from dataclasses import dataclass, field
 import time
 
@@ -14,6 +14,7 @@ from swizzle.engine.block_manager import BlockManager
 from swizzle.engine.scheduler import Scheduler, SchedulerOutputs
 from swizzle.engine.speculative_scheduler import SpeculativeScheduler
 from swizzle.engine.disagg_coordinator import DisaggCoordinator
+from swizzle.engine.backends.base import BaseModelBackend
 from swizzle.models.llama import LlamaForCausalLM
 from swizzle.models.qwen2_5_coder import Qwen2_5CoderForCausalLM
 
@@ -40,6 +41,7 @@ class LLMEngine:
         enable_speculative: bool = True,
         enable_prefix_cache: bool = True,
         enable_disagg: bool = True,
+        backend: Optional[Union[str, BaseModelBackend]] = None,
     ):
         self.model_name = model_name
         self.block_size = block_size
@@ -65,8 +67,13 @@ class LLMEngine:
             enable_zero_copy_rdma=enable_disagg,
         )
 
-        # Model runner
-        if "qwen" in model_name.lower():
+        # Model runner / backend
+        if isinstance(backend, BaseModelBackend):
+            self.model = backend
+        elif isinstance(backend, str):
+            from swizzle.engine.backends import create_backend
+            self.model = create_backend(model_name=model_name, backend_type=backend)
+        elif "qwen" in model_name.lower():
             self.model = Qwen2_5CoderForCausalLM()
         else:
             self.model = LlamaForCausalLM()

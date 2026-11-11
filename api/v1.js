@@ -214,6 +214,70 @@ export default async function handler(req, res) {
     : (req.query.path || req.url.replace(/^\/v1\/?/, '').split('?')[0]);
   const path = String(rawPath).replace(/^\/+|\/+$/g, '');
 
+  // Dynamic Upstream Worker Proxy (Google Colab Pro GPU via Cloudflare Tunnel)
+  const upstreamUrl = (
+    process.env.SWIZZLE_UPSTREAM_URL ||
+    req.headers['x-swizzle-upstream'] ||
+    ''
+  ).trim().replace(/\/+$/, '');
+
+  if (upstreamUrl && (path === 'chat/completions' || path === 'completions' || path === 'models' || path === 'telemetry')) {
+    try {
+      const normalizedUpstream = upstreamUrl.endsWith('/v1') ? upstreamUrl : `${upstreamUrl}/v1`;
+      const targetUrl = `${normalizedUpstream}/${path}`;
+
+      const fetchHeaders = {
+        'Accept': req.headers['accept'] || 'application/json',
+      };
+      if (req.headers['authorization']) fetchHeaders['Authorization'] = req.headers['authorization'];
+      if (req.headers['x-api-key']) fetchHeaders['x-api-key'] = req.headers['x-api-key'];
+      if (req.headers['content-type']) fetchHeaders['Content-Type'] = req.headers['content-type'];
+
+      const fetchOptions = {
+        method: req.method,
+        headers: fetchHeaders,
+        signal: AbortSignal.timeout(15000),
+      };
+
+      if (req.method !== 'GET' && req.method !== 'HEAD' && req.body) {
+        fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+        fetchHeaders['Content-Type'] = 'application/json';
+      }
+
+      const upstreamRes = await fetch(targetUrl, fetchOptions);
+
+      if (upstreamRes.ok || upstreamRes.status < 500) {
+        res.setHeader('X-Swizzle-Proxied-Worker', upstreamUrl);
+        const contentType = upstreamRes.headers.get('content-type') || '';
+
+        // Handle SSE streaming
+        if (contentType.includes('text/event-stream') || (req.body && req.body.stream)) {
+          res.setHeader('Content-Type', 'text/event-stream');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Connection', 'keep-alive');
+
+          if (upstreamRes.body && upstreamRes.body.getReader) {
+            const reader = upstreamRes.body.getReader();
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              res.write(value);
+            }
+            return res.end();
+          } else if (upstreamRes.body && typeof upstreamRes.body.pipe === 'function') {
+            return upstreamRes.body.pipe(res);
+          }
+        }
+
+        const data = await upstreamRes.json();
+        return res.status(upstreamRes.status).json(data);
+      }
+    } catch (proxyErr) {
+      res.setHeader('X-Swizzle-Upstream-Fallback', 'true');
+      res.setHeader('X-Swizzle-Upstream-Error', String(proxyErr.message || 'unreachable'));
+    }
+  }
+
   // 1. GET /v1/models
   if (path === 'models') {
     return res.status(200).json({ object: 'list', data: CATALOG });

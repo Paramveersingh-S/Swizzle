@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swizzle-kernels"
+version = "0.2.0"
+description = "Hardware-roofline bitwise XOR shared-memory swizzled PagedAttention kernels"
+readme = "README.md"
+authors = [{ name = "Swizzle-AI Maintainers", email = "maintainers@swizzle.ai" }]
+license = { text = "Apache-2.0" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "torch>=2.1.0",
+]
+
+[project.optional-dependencies]
+triton = ["triton>=2.1.0"]
+
+[project.entry-points."vllm.general_plugins"]
+swizzle_attn = "swizzle_kernels.vllm_plugin:register"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["swizzle_kernels*"]

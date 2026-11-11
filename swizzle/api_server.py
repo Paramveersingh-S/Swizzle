@@ -6,6 +6,7 @@ Exposes OpenAI-compatible endpoints (/v1/chat/completions, /v1/completions,
 batching scheduler, AST-diff prefix cache, and prefill-decode disaggregation.
 """
 
+import os
 import time
 import uuid
 import json
@@ -19,7 +20,11 @@ from pydantic import BaseModel, Field
 
 from swizzle.engine.llm_engine import LLMEngine, RequestOutput
 from swizzle.engine.sequence import SamplingParams
+from swizzle.engine.tokenizer import get_default_tokenizer
 
+
+# Backend configured from environment: "simulation", "transformers", "vllm", or "llamacpp"
+BACKEND_TYPE = os.environ.get("SWIZZLE_BACKEND", "simulation")
 
 # Global LLM Engine Instance
 engine = LLMEngine(
@@ -31,6 +36,7 @@ engine = LLMEngine(
     enable_speculative=True,
     enable_prefix_cache=True,
     enable_disagg=True,
+    backend=BACKEND_TYPE,
 )
 
 
@@ -84,19 +90,21 @@ class CompletionRequest(BaseModel):
     ast_metadata: Optional[Dict[str, Any]] = None
 
 
+_tokenizer = get_default_tokenizer("Qwen/Qwen2.5-Coder-7B-Instruct")
+
+
 def _encode_text(text: str) -> List[int]:
     """Encodes UTF-8 text into token IDs."""
     if not text:
         return [1]
-    return [int(b) + 1 for b in text.encode("utf-8")]
+    return _tokenizer.encode(text)
 
 
 def _decode_tokens(tokens: List[int]) -> str:
     """Decodes token IDs into UTF-8 text."""
     if not tokens:
         return ""
-    byte_vals = bytes([max(0, min(255, (t - 1) % 256)) for t in tokens])
-    return byte_vals.decode("utf-8", errors="replace")
+    return _tokenizer.decode(tokens)
 
 
 # --- Endpoints ---

@@ -8,6 +8,8 @@ and Paged Attention with bitwise XOR shared-memory bank conflict avoidance.
 from typing import List, Dict, Optional, Tuple, Any
 import math
 import numpy as np
+from swizzle.engine.backends.base import BaseModelBackend
+from swizzle.engine.tokenizer import get_default_tokenizer
 
 
 class LlamaConfig:
@@ -36,9 +38,14 @@ class LlamaConfig:
         self.max_position_embeddings = max_position_embeddings
 
 
-class LlamaForCausalLM:
+class LlamaForCausalLM(BaseModelBackend):
     def __init__(self, config: Optional[LlamaConfig] = None):
         self.config = config or LlamaConfig()
+        self._tokenizer = None
+
+    @property
+    def vocab_size(self) -> int:
+        return self.config.vocab_size
 
     def forward(
         self,
@@ -52,7 +59,8 @@ class LlamaForCausalLM:
         """
         # Vectorized lightweight computation for continuous batching simulation / testing
         seq_len = len(input_ids)
-        rng = np.random.RandomState(seed=(hash(tuple(input_ids[-4:])) % (2**31 - 1)))
+        seed = (hash(tuple(input_ids[-4:])) % (2**31 - 1)) if input_ids else 42
+        rng = np.random.RandomState(seed=seed)
         
         # Biased distribution simulating high-confidence token outputs
         logits = rng.normal(loc=0.0, scale=1.0, size=self.config.vocab_size).astype(np.float32)
@@ -68,25 +76,15 @@ class LlamaForCausalLM:
         top_p: float = 1.0,
     ) -> int:
         """Samples next token from logit distribution using temperature and nucleus top-p."""
-        logits_arr = np.array(logits, dtype=np.float32)
-        if temperature > 1e-4:
-            logits_arr = logits_arr / temperature
-        
-        # Softmax
-        exp_l = np.exp(logits_arr - np.max(logits_arr))
-        probs = exp_l / np.sum(exp_l)
+        return super().sample_next_token(logits, temperature=temperature, top_p=top_p)
 
-        if top_p < 1.0:
-            sorted_indices = np.argsort(probs)[::-1]
-            sorted_probs = probs[sorted_indices]
-            cumulative_probs = np.cumsum(sorted_probs)
-            cutoff = cumulative_probs > top_p
-            if np.any(cutoff):
-                cutoff_idx = np.where(cutoff)[0][0]
-                sorted_probs[cutoff_idx + 1 :] = 0.0
-                probs = np.zeros_like(probs)
-                probs[sorted_indices] = sorted_probs
-                probs = probs / np.sum(probs)
+    def tokenize(self, text: str) -> List[int]:
+        if self._tokenizer is None:
+            self._tokenizer = get_default_tokenizer("meta-llama/Llama-3.1-8B-Instruct")
+        return self._tokenizer.encode(text)
 
-        return int(np.random.choice(len(probs), p=probs))
+    def detokenize(self, token_ids: List[int]) -> str:
+        if self._tokenizer is None:
+            self._tokenizer = get_default_tokenizer("meta-llama/Llama-3.1-8B-Instruct")
+        return self._tokenizer.decode(token_ids)
 

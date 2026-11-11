@@ -7,6 +7,8 @@ and high-frequency speculative draft verification.
 
 from typing import List, Dict, Optional, Tuple, Any
 import numpy as np
+from swizzle.engine.backends.base import BaseModelBackend
+from swizzle.engine.tokenizer import get_default_tokenizer
 
 
 class QwenConfig:
@@ -31,9 +33,14 @@ class QwenConfig:
         self.max_position_embeddings = max_position_embeddings
 
 
-class Qwen2_5CoderForCausalLM:
+class Qwen2_5CoderForCausalLM(BaseModelBackend):
     def __init__(self, config: Optional[QwenConfig] = None):
         self.config = config or QwenConfig()
+        self._tokenizer = None
+
+    @property
+    def vocab_size(self) -> int:
+        return self.config.vocab_size
 
     def forward(
         self,
@@ -41,7 +48,8 @@ class Qwen2_5CoderForCausalLM:
         block_tables: Optional[List[List[int]]] = None,
         is_prefill: bool = False,
     ) -> List[float]:
-        rng = np.random.RandomState(seed=(hash(tuple(input_ids[-4:])) % (2**31 - 1)))
+        seed = (hash(tuple(input_ids[-4:])) % (2**31 - 1)) if input_ids else 42
+        rng = np.random.RandomState(seed=seed)
         logits = rng.normal(loc=0.0, scale=1.0, size=self.config.vocab_size).astype(np.float32)
         top_k = rng.choice(self.config.vocab_size, size=5, replace=False)
         logits[top_k] += 14.0
@@ -53,10 +61,15 @@ class Qwen2_5CoderForCausalLM:
         temperature: float = 0.2,
         top_p: float = 0.95,
     ) -> int:
-        logits_arr = np.array(logits, dtype=np.float32)
-        if temperature > 1e-4:
-            logits_arr = logits_arr / temperature
-        exp_l = np.exp(logits_arr - np.max(logits_arr))
-        probs = exp_l / np.sum(exp_l)
-        return int(np.argmax(probs))
+        return super().sample_next_token(logits, temperature=temperature, top_p=top_p)
+
+    def tokenize(self, text: str) -> List[int]:
+        if self._tokenizer is None:
+            self._tokenizer = get_default_tokenizer("Qwen/Qwen2.5-Coder-7B-Instruct")
+        return self._tokenizer.encode(text)
+
+    def detokenize(self, token_ids: List[int]) -> str:
+        if self._tokenizer is None:
+            self._tokenizer = get_default_tokenizer("Qwen/Qwen2.5-Coder-7B-Instruct")
+        return self._tokenizer.decode(token_ids)
 

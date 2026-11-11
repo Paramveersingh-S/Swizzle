@@ -23,6 +23,8 @@ from .models.smol_vla import SmolVLAPolicy
 from .models.openvla import OpenVLAPolicy
 from .models.pi0_flow import Pi0Policy
 from .models.vjepa_wm import VJEPAWorldModel
+from .models.lerobot_policy import LeRobotPolicyWrapper
+from .lerobot_integration import SwizzleAcceleratedLeRobotPolicy, wrap_lerobot_policy
 from .models import get_policy, get_world_model, MODEL_REGISTRY
 from .servoing import VisualServoingLoop, ServoingTelemetry
 
@@ -53,6 +55,9 @@ __all__ = [
     "OpenVLAPolicy",
     "Pi0Policy",
     "VJEPAWorldModel",
+    "LeRobotPolicyWrapper",
+    "SwizzleAcceleratedLeRobotPolicy",
+    "wrap_lerobot_policy",
     "MODEL_REGISTRY",
     "get_policy",
     "get_world_model",
