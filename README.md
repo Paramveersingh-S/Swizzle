@@ -16,6 +16,7 @@
 [![Hardware Worker](https://img.shields.io/badge/Silicon-NVIDIA_A100_SXM4-76B900?style=for-the-badge&logo=nvidia&logoColor=white)](https://swizzle-ten.vercel.app/#platform)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge)](LICENSE)
 [![Gateway](https://img.shields.io/badge/Edge_Control_Plane-Go_1.22-00ADD8?style=for-the-badge&logo=go&logoColor=white)](./gateway)
+[![Twitter Follow](https://img.shields.io/badge/Twitter-@Swizzler112-1DA1F2?style=for-the-badge&logo=x&logoColor=white)](https://x.com/Swizzler112)
 
 <p align="center">
   <a href="https://swizzle-ten.vercel.app"><b>Explore Platform</b></a> •
