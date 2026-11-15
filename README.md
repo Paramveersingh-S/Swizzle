@@ -9,6 +9,7 @@
 **Sub-40ms cached TTFT · Zero shared-memory bank conflicts · 10× cheaper prefix billing**
 
 [![Live Demo](https://img.shields.io/badge/Live_Platform-swizzle--ten.vercel.app-c9ff3b?style=for-the-badge&logo=vercel&logoColor=black)](https://swizzle-ten.vercel.app)
+[![Technical Report PDF](https://img.shields.io/badge/Technical_Report_(SWZ--TR--2026--01)-28--Page_PDF-c9ff3b?style=for-the-badge&logo=adobeacrobatreader&logoColor=black)](docs/Swizzle_Runtime_Technical_Report.pdf)
 [![Student Robotics Playground](https://img.shields.io/badge/Robotics_%26_World_Models-Student_Playground_(80.5_Hz)-00E676?style=for-the-badge)](https://swizzle-ten.vercel.app/#student-playground)
 [![Speculative Decoding](https://img.shields.io/badge/Swizzle--Draft-98.7_tok%2Fs_(2.76x)-FF6F00?style=for-the-badge)](docs/worklogs/WORKLOG_OPTION_A_SPECULATIVE_DRAFT.md)
 [![AST-Diff Virtual Paging](https://img.shields.io/badge/Swizzle--Tree-89.6%25_Cache_Reuse-00C853?style=for-the-badge)](docs/worklogs/WORKLOG_OPTION_B_AST_DIFF_KV.md)
@@ -20,6 +21,7 @@
 
 <p align="center">
   <a href="https://swizzle-ten.vercel.app"><b>Explore Platform</b></a> •
+  <a href="docs/Swizzle_Runtime_Technical_Report.pdf"><b>📄 Technical Report (28-Page PDF)</b></a> •
   <a href="https://swizzle-ten.vercel.app/#student-playground"><b>Student Robotics Playground</b></a> •
   <a href="#-the-3-core-inference-engineering-breakthroughs"><b>3 Core Breakthroughs</b></a> •
   <a href="#-robotics-vlas--world-models-for-student-laptops"><b>Robotics & World Models</b></a> •
@@ -51,6 +53,18 @@ In a typical 10-turn coding session, **88% to 96% of input tokens are identical 
 2. **10× Cost Advantage**: Reused tokens are billed at a **tenth of the standard input price** ($0.015/1M vs $0.15/1M).
 3. **XOR Shared-Memory Swizzling**: Attention tile load instructions are permuted with bitwise XOR transforms, eliminating the 8-way to 32-way GPU SRAM bank conflicts that stall tensor cores.
 4. **Dual Wire Protocol**: Full native compatibility with both the **OpenAI API** (`/v1/chat/completions`) and the **Anthropic Messages API** (`/v1/messages`).
+
+---
+
+## 📄 Swizzle Runtime Technical Report (`SWZ-TR-2026-01`, 28-Page PDF)
+
+We have published the complete first-principles architectural report and code breakdown for **Swizzle Runtime (`swizzle-rt`)**:
+
+👉 **[Download / Read `Swizzle_Runtime_Technical_Report.pdf` (28 Pages)](docs/Swizzle_Runtime_Technical_Report.pdf)** • **[LaTeX Source](docs/Swizzle_Runtime_Technical_Report.tex)** • **[`Swizzle-AI/swizzle-runtime` Repository](https://github.com/Swizzle-AI/swizzle-runtime)**
+
+* **11,804.23 tok/s CUDA Prefill (`pp512`, 43.37 ms TTFT)** & **209.70 tok/s CUDA Decode (`tg128`, +6.5% vs. `llama.cpp`, 4.84 ms p50 ITL)** on `Qwen3-0.6B-Q8_0`, plus **+37.7% faster CPU speculative code editing** (`90.61` vs. `65.80 tok/s`) and **+11.8% faster hybrid CPU decode** on `LFM3-1.7B-Q4_K_M`.
+* **Zero-Padding XOR Bank-Conflict-Free Tensor-Core GEMM**: Formal proof of `gemm_swizzle(r, b) = b ^ ((r & 7) << 4)` (`Theorem 6.1`), the IEEE-754 `0x4B400000` mantissa bias trick, and compile-time `TreeSum<K>` reductions guaranteeing bit-identical output across `dp4a` and `mma.sync`.
+* **Six Integrated Speed Technologies**: `RAD-1` (262k-token Suffix Automaton + MTP speculative ensemble), `Shortlist` (Cauchy-Schwarz + IEEE-754 error-bounded `Q4_K` vocabulary screening), `Warm Start` (grid-checkpointed memory/disk prefix cache), `Zero Wait` (live terminal keystroke prefill), `Torque` (device-resident `[pos, ids...]` CUDA graph replay), and `Convoy` (5 ms multi-sequence pass gathering).
 
 ---
 
