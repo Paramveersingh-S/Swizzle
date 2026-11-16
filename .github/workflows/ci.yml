@@ -18,6 +18,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
         pip install pytest pytest-asyncio numpy fastapi httpx uvicorn pydantic
-        pip install -e sdk/python
     - name: Run test suite
+      env:
+        PYTHONPATH: .
       run: pytest -v tests/
