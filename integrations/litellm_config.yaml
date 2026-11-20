@@ -10,48 +10,18 @@
 # ==============================================================================
 
 model_list:
-  # 1. Live A100 Worker Model (Active Now)
+  # 1. Local VPC Gateway / Swizzle Runtime (AST-Tree + SecretVault + RAD-1 Fast-Apply)
   - model_name: swizzle/qwen-2.5-coder-7b
     litellm_params:
       model: openai/Qwen/Qwen2.5-Coder-7B-Instruct
-      api_base: https://swizzle-ten.vercel.app/v1
+      api_base: os.environ/SWIZZLE_BASE_URL  # defaults to http://localhost:8080/v1
       api_key: os.environ/SWIZZLE_API_KEY
     model_info:
-      input_cost_per_token: 0.00000008
-      cache_read_input_token_cost: 0.000000008  # 90% discount on cached prefixes
-      output_cost_per_token: 0.00000030
+      input_cost_per_token: 0.00000015
+      cache_read_input_token_cost: 0.000000015  # 90% discount on cached prefixes
+      output_cost_per_token: 0.00000045
       max_input_tokens: 32768
       max_output_tokens: 8192
-      supports_function_calling: true
-      supports_prompt_caching: true
-
-  # 2. Production Flagship Swizzle Model (api.withswizzle.com)
-  - model_name: swizzle/qwen3.6-35b-a3b-fp8
-    litellm_params:
-      model: openai/swizzle/qwen3.6-35b-a3b-fp8
-      api_base: https://api.withswizzle.com/v1
-      api_key: os.environ/SWIZZLE_API_KEY
-    model_info:
-      input_cost_per_token: 0.00000020
-      cache_read_input_token_cost: 0.00000002
-      output_cost_per_token: 0.00000080
-      max_input_tokens: 262144
-      max_output_tokens: 32768
-      supports_function_calling: true
-      supports_prompt_caching: true
-
-  # 3. Frontier Agent Model (1M Context)
-  - model_name: swizzle/deepseek-v4.1-flash-1017
-    litellm_params:
-      model: openai/swizzle/deepseek-v4.1-flash-1017
-      api_base: https://api.withswizzle.com/v1
-      api_key: os.environ/SWIZZLE_API_KEY
-    model_info:
-      input_cost_per_token: 0.00000025
-      cache_read_input_token_cost: 0.000000025
-      output_cost_per_token: 0.00000100
-      max_input_tokens: 1000000
-      max_output_tokens: 65536
       supports_function_calling: true
       supports_prompt_caching: true
 
@@ -60,5 +30,8 @@ general_settings:
   pass_through_headers:
     - X-Swizzle-Tokens-Saved
     - X-Swizzle-Compression-Ratio
-    - X-Swizzle-Cache-Hit
-    - X-Swizzle-Engine-TTFT
+    - X-Swizzle-Cache-Hit-Tokens
+    - X-Swizzle-AST-Reuse-Pct
+    - X-Swizzle-Secrets-Redacted
+    - X-Swizzle-Audit-Token
+    - X-Swizzle-TTFT-Ms
