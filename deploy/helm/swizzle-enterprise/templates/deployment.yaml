@@ -1,0 +1,135 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-gateway
+  labels:
+    app.kubernetes.io/name: swizzle-gateway
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: swizzle-gateway
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: swizzle-gateway
+        app.kubernetes.io/instance: {{ .Release.Name }}
+      {{- if .Values.metrics.enabled }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "{{ .Values.metrics.path }}"
+        prometheus.io/port: "{{ .Values.gateway.port }}"
+      {{- end }}
+    spec:
+      containers:
+        - name: swizzle-gateway
+          image: "{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag }}"
+          imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.gateway.port }}
+          env:
+            - name: PORT
+              value: "{{ .Values.gateway.port }}"
+            - name: UPSTREAM_URL
+              value: {{ .Values.gateway.upstreamUrl | quote }}
+            - name: SWIZZLE_CLUSTER_SALT
+              value: {{ .Values.gateway.clusterSalt | quote }}
+            - name: SWIZZLE_KEY_PEPPER
+              value: {{ .Values.gateway.keyPepper | quote }}
+            - name: VALKEY_ADDR
+              value: {{ .Values.gateway.valkeyAddr | quote }}
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-gateway
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.gateway.port }}
+      targetPort: http
+  selector:
+    app.kubernetes.io/name: swizzle-gateway
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- if .Values.runtime.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: swizzle-runtime
+  labels:
+    app.kubernetes.io/name: swizzle-runtime
+spec:
+  replicas: {{ .Values.runtime.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: swizzle-runtime
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: swizzle-runtime
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: swizzle-rt
+          image: "{{ .Values.runtime.image.repository }}:{{ .Values.runtime.image.tag }}"
+          imagePullPolicy: {{ .Values.runtime.image.pullPolicy }}
+          args: ["serve", {{ .Values.runtime.modelPath | quote }}, "--host", "0.0.0.0", "--port", "8080"]
+          ports:
+            - name: http
+              containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: {{ .Values.runtime.resources.requests.cpu | quote }}
+              memory: {{ .Values.runtime.resources.requests.memory | quote }}
+              {{- if gt (int .Values.runtime.gpuCount) 0 }}
+              nvidia.com/gpu: {{ .Values.runtime.gpuCount | quote }}
+              {{- end }}
+            limits:
+              memory: {{ .Values.runtime.resources.limits.memory | quote }}
+              {{- if gt (int .Values.runtime.gpuCount) 0 }}
+              nvidia.com/gpu: {{ .Values.runtime.gpuCount | quote }}
+              {{- end }}
+          volumeMounts:
+            - name: model-cache
+              mountPath: /models
+              readOnly: true
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: {{ .Values.runtime.modelPvcName }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: swizzle-runtime
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+  selector:
+    app.kubernetes.io/name: swizzle-runtime
+{{- end }}

@@ -1,0 +1,44 @@
+replicaCount: 2
+
+gateway:
+  image:
+    repository: swizzle-gateway
+    tag: latest
+    pullPolicy: IfNotPresent
+  port: 8080
+  upstreamUrl: "http://swizzle-runtime:8080/v1"
+  clusterSalt: "replace-with-kms-cluster-kv-salt"
+  keyPepper: "replace-with-kms-hmac-key-pepper"
+  valkeyAddr: "swizzle-valkey:6379"
+  resources:
+    requests:
+      cpu: "1"
+      memory: "1Gi"
+    limits:
+      cpu: "4"
+      memory: "4Gi"
+
+runtime:
+  enabled: true
+  image:
+    repository: ghcr.io/swizzle-ai/swizzle-runtime
+    tag: latest
+    pullPolicy: IfNotPresent
+  modelPath: "/models/Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf"
+  replicas: 1
+  gpuCount: 1
+  resources:
+    requests:
+      cpu: "4"
+      memory: "16Gi"
+    limits:
+      memory: "24Gi"
+  modelPvcName: "swizzle-models-pvc"
+
+valkey:
+  image: valkey/valkey:8.0-alpine
+  maxMemory: "2gb"
+
+metrics:
+  enabled: true
+  path: /metrics

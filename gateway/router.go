@@ -65,7 +65,7 @@ func NewRadixPrefixRouter() *RadixPrefixRouter {
 func (r *RadixPrefixRouter) seedDefaultWorkers() {
 	upstreamEnv := os.Getenv("UPSTREAM_URL")
 	if upstreamEnv == "" {
-		upstreamEnv = "https://employers-willow-integrate-penetration.trycloudflare.com/v1"
+		upstreamEnv = "http://127.0.0.1:8080/v1"
 	}
 	urls := strings.Split(upstreamEnv, ",")
 	for i, rawURL := range urls {
@@ -73,15 +73,15 @@ func (r *RadixPrefixRouter) seedDefaultWorkers() {
 		if u == "" {
 			continue
 		}
-		workerID := "a100-sxm4-colab-01"
+		workerID := "swizzle-runtime-01"
 		if i > 0 {
 			workerID = "gpu-worker-0" + string(rune('1'+i))
 		}
 		r.workers[workerID] = &WorkerNode{
 			ID:          workerID,
 			EndpointURL: strings.TrimRight(u, "/"),
-			Hardware:    "NVIDIA A100-SXM4-40GB (CUDA XOR-Swizzled PagedAttention)",
-			Region:      "global-edge-cf",
+			Hardware:    "Swizzle Runtime VPC Worker (CUDA / Vulkan / AVX2)",
+			Region:      "vpc-local-primary",
 			SupportedModels: []string{
 				"Qwen/Qwen2.5-Coder-7B-Instruct",
 				"swizzle/qwen3.6-35b-a3b-fp8",
@@ -295,4 +295,3 @@ func handleWorkers(w http.ResponseWriter, r *http.Request) {
 		"workers": prefixRouter.ListWorkers(),
 	})
 }
-

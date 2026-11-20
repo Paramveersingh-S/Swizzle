@@ -1,0 +1,6 @@
+apiVersion: v2
+name: swizzle-enterprise
+description: Swizzle Enterprise Gateway + Verifiable Swizzle Runtime Helm chart for VPC / Kubernetes deployment
+type: application
+version: 0.1.0
+appVersion: "0.2.0"

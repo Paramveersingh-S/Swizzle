@@ -299,7 +299,7 @@ type APIKeyRecord struct {
 }
 
 var (
-	ledger  = NewPrefixCacheLedger()
+	ledger   = NewPrefixCacheLedger()
 	keyStore = struct {
 		sync.RWMutex
 		keys map[string]*APIKeyRecord
@@ -509,8 +509,19 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	// 7. Real-Time 3-Tier Billing & Savings Calculation
 	costUSD, savedUSD := authEngine.RecordBilling(acct, spec, uncachedToks, cachedToks, totalSaved, 48)
+	traceparent := r.Header.Get("traceparent")
+	tier := "developer"
+	if acct != nil && acct.Tier != "" {
+		tier = acct.Tier
+	}
+	auditReceipt := enterpriseAudit.Record(
+		tenantID, tier, spec.ID, traceparent,
+		totalToks, cachedToks, astSummary.ReusedTokens, totalSaved, totalSecretsRedacted,
+		costUSD, savedUSD,
+	)
 
 	zdrHash := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%d", tenantID, spec.ID, time.Now().UnixNano())))
+	w.Header().Set("X-Swizzle-Audit-Token", auditReceipt.EntryDigest)
 	w.Header().Set("X-Swizzle-TTFT-Ms", fmt.Sprintf("%d", ttftMs))
 	w.Header().Set("X-Swizzle-Cache-Hit-Tokens", fmt.Sprintf("%d", cachedToks))
 	w.Header().Set("X-Swizzle-Uncached-Tokens", fmt.Sprintf("%d", uncachedToks))
@@ -569,7 +580,7 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 				prefixRouter.MarkWorkerSuccess(workerID)
 				elapsedMs := int(time.Since(start).Milliseconds())
 				w.Header().Set("X-Swizzle-TTFT-Ms", fmt.Sprintf("%d", elapsedMs))
-				w.Header().Set("X-Swizzle-Hardware", "NVIDIA L4/A100 GPU Worker (Colab Pro)")
+				w.Header().Set("X-Swizzle-Hardware", spec.Hardware)
 				w.Header().Set("X-Swizzle-Live-Worker", upstreamURL)
 				for k, v := range resp.Header {
 					if strings.HasPrefix(k, "Content-") {
@@ -764,6 +775,8 @@ func main() {
 	mux.HandleFunc("/v1/workers/register", withCORS(handleWorkers))
 	mux.HandleFunc("/v1/billing/ledger", withCORS(handleBillingLedger))
 	mux.HandleFunc("/v1/telemetry", withCORS(handleTelemetry))
+	mux.HandleFunc("/v1/enterprise/roi", withCORS(handleEnterpriseROI))
+	mux.HandleFunc("/v1/enterprise/audit", withCORS(handleEnterpriseAudit))
 	mux.HandleFunc("/v1/robotics/catalog", withCORS(handleRoboticsCatalog))
 	mux.HandleFunc("/v1/robotics/act", withCORS(handleRoboticsAct))
 	mux.HandleFunc("/v1/world/plan", withCORS(handleWorldPlan))
@@ -784,4 +797,3 @@ func main() {
 		log.Fatal(err)
 	}
 }
-

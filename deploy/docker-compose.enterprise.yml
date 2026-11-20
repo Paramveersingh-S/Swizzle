@@ -10,9 +10,9 @@ services:
       - "8080:8080"
     environment:
       - PORT=8080
-      - UPSTREAM_URL=${UPSTREAM_URL:-https://employers-willow-integrate-penetration.trycloudflare.com/v1}
-      - SWIZZLE_CLUSTER_SALT=${SWIZZLE_CLUSTER_SALT:-swizzle-enterprise-zdr-kv-salt-v1}
-      - SWIZZLE_KEY_PEPPER=${SWIZZLE_KEY_PEPPER:-swizzle-hmac-key-pepper-2026}
+      - UPSTREAM_URL=${UPSTREAM_URL:-http://host.docker.internal:8080/v1}
+      - SWIZZLE_CLUSTER_SALT=${SWIZZLE_CLUSTER_SALT:-change-me-32-char-cluster-kv-salt}
+      - SWIZZLE_KEY_PEPPER=${SWIZZLE_KEY_PEPPER:-change-me-32-char-hmac-key-pepper}
       - VALKEY_ADDR=valkey:6379
     depends_on:
       - valkey
